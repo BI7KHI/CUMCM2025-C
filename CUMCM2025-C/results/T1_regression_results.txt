@@ -1,0 +1,31 @@
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                 Y染色体浓度   R-squared:                       0.071
+Model:                            OLS   Adj. R-squared:                  0.067
+Method:                 Least Squares   F-statistic:                     16.48
+Date:                Thu, 04 Sep 2025   Prob (F-statistic):           1.08e-15
+Time:                        22:27:10   Log-Likelihood:                 2177.0
+No. Observations:                1081   AIC:                            -4342.
+Df Residuals:                    1075   BIC:                            -4312.
+Df Model:                           5                                         
+Covariance Type:            nonrobust                                         
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+const         -0.4785      0.316     -1.514      0.130      -1.099       0.142
+孕周数值           0.0013      0.000      5.156      0.000       0.001       0.002
+孕妇BMI指标        0.0092      0.005      1.877      0.061      -0.000       0.019
+孕妇年龄          -0.0010      0.000     -3.626      0.000      -0.002      -0.000
+孕妇身高           0.0038      0.002      1.976      0.048    2.61e-05       0.008
+孕妇体重          -0.0042      0.002     -2.265      0.024      -0.008      -0.001
+==============================================================================
+Omnibus:                       70.449   Durbin-Watson:                   0.842
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):               89.738
+Skew:                           0.586   Prob(JB):                     3.26e-20
+Kurtosis:                       3.786   Cond. No.                     6.02e+04
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+[2] The condition number is large, 6.02e+04. This might indicate that there are
+strong multicollinearity or other numerical problems.
