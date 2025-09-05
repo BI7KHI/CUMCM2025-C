@@ -10,4 +10,4 @@
 
 # @Builder 使用模型
  M1 Doubao-Seed-1.6
- M2 
+ M2 Claude-3.5-Sonnet
