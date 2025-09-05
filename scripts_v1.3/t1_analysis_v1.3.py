@@ -42,8 +42,9 @@ def load_cleaned_data():
     print("=== 加载清洗后的数据 ===")
     
     try:
-        # 读取清洗后的CSV文件
-        df = pd.read_csv('../Source_DATA/male_fetal_data_cleaned.csv')
+        # 使用路径工具函数加载数据
+        from path_utils import load_data_file
+        df = load_data_file('male_fetal_data_cleaned.csv', 'csv')
         print(f"成功加载清洗后的数据，形状: {df.shape}")
         
         # 显示基本信息
@@ -733,3 +734,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
