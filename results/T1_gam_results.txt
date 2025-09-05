@@ -1,4 +1,4 @@
-LinearGAM                                                                                                 
+ LinearGAM                                                                                                 
 =============================================== ==========================================================
 Distribution:                        NormalDist Effective DoF:                                      59.258
 Link Function:                     IdentityLink Log Likelihood:                                  -999.4791
