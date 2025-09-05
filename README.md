@@ -15,7 +15,7 @@
 
 M1 Doubao-Seed-1.6 `<br>`
 M2 Claude-3.5-Sonnet `<br> `
-
+M3 Grok-4 `<br> `
 <AI太好用了你知道吧>
 
 # @Chat 使用的生成式模型
