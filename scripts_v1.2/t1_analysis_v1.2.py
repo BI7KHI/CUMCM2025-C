@@ -17,9 +17,18 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
 
-# 设置中文字体
-plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
+# 设置中文字体 - 优化版本
+import matplotlib
+matplotlib.rcParams['font.family'] = ['sans-serif']
+matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans', 'Arial Unicode MS', 'WenQuanYi Micro Hei']
+matplotlib.rcParams['axes.unicode_minus'] = False
+matplotlib.rcParams['font.size'] = 10
+
+# 设置matplotlib后端
+import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans', 'Arial Unicode MS']
 plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['figure.autolayout'] = True
 
 def load_cleaned_data():
     """加载清洗后的数据"""
@@ -158,33 +167,64 @@ def create_visualizations(df):
     """创建可视化图表"""
     print("\n=== 创建可视化图表 ===")
     
-    # 设置图表样式
+    # 设置图表样式和字体
     plt.style.use('default')
+    
+    # 尝试设置中文字体
+    try:
+        # 检查系统可用字体
+        from matplotlib.font_manager import FontProperties
+        import matplotlib.font_manager as fm
+        
+        # 获取系统中文字体
+        chinese_fonts = []
+        for font in fm.fontManager.ttflist:
+            if 'SimHei' in font.name or 'Microsoft YaHei' in font.name or 'WenQuanYi' in font.name:
+                chinese_fonts.append(font.name)
+        
+        if chinese_fonts:
+            plt.rcParams['font.sans-serif'] = chinese_fonts[:3] + ['DejaVu Sans']
+            print(f"使用中文字体: {chinese_fonts[:3]}")
+        else:
+            print("未找到中文字体，使用默认字体")
+            plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+            
+    except Exception as e:
+        print(f"字体设置警告: {e}")
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    
+    # 设置图表参数
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.rcParams['figure.autolayout'] = True
+    plt.rcParams['font.size'] = 10
+    
     fig = plt.figure(figsize=(20, 15))
     
     # 1. Y染色体浓度与孕周的散点图
     plt.subplot(3, 3, 1)
     plt.scatter(df['检测孕周'], df['Y染色体浓度'], alpha=0.6, s=20)
-    plt.xlabel('检测孕周 (周)')
-    plt.ylabel('Y染色体浓度 (%)')
-    plt.title('Y染色体浓度与孕周的关系')
+    plt.xlabel('检测孕周 (周)', fontsize=12, fontweight='bold')
+    plt.ylabel('Y染色体浓度 (%)', fontsize=12, fontweight='bold')
+    plt.title('Y染色体浓度与孕周的关系', fontsize=14, fontweight='bold', pad=20)
+    plt.grid(True, alpha=0.3)
     
     # 添加趋势线
     z = np.polyfit(df['检测孕周'], df['Y染色体浓度'], 1)
     p = np.poly1d(z)
-    plt.plot(df['检测孕周'], p(df['检测孕周']), "r--", alpha=0.8)
+    plt.plot(df['检测孕周'], p(df['检测孕周']), "r--", alpha=0.8, linewidth=2)
     
     # 2. Y染色体浓度与BMI的散点图
     plt.subplot(3, 3, 2)
     plt.scatter(df['孕妇BMI'], df['Y染色体浓度'], alpha=0.6, s=20, color='orange')
-    plt.xlabel('孕妇BMI (kg/m²)')
-    plt.ylabel('Y染色体浓度 (%)')
-    plt.title('Y染色体浓度与BMI的关系')
+    plt.xlabel('孕妇BMI (kg/m²)', fontsize=12, fontweight='bold')
+    plt.ylabel('Y染色体浓度 (%)', fontsize=12, fontweight='bold')
+    plt.title('Y染色体浓度与BMI的关系', fontsize=14, fontweight='bold', pad=20)
+    plt.grid(True, alpha=0.3)
     
     # 添加趋势线
     z = np.polyfit(df['孕妇BMI'], df['Y染色体浓度'], 1)
     p = np.poly1d(z)
-    plt.plot(df['孕妇BMI'], p(df['孕妇BMI']), "r--", alpha=0.8)
+    plt.plot(df['孕妇BMI'], p(df['孕妇BMI']), "r--", alpha=0.8, linewidth=2)
     
     # 3. BMI分组箱线图
     plt.subplot(3, 3, 3)
@@ -196,11 +236,17 @@ def create_visualizations(df):
     valid_groups = df['bmi_group'].dropna().unique()
     bmi_data = [df[df['bmi_group'] == group]['Y染色体浓度'].values for group in valid_groups]
     
-    plt.boxplot(bmi_data, labels=valid_groups)
-    plt.xlabel('BMI分组')
-    plt.ylabel('Y染色体浓度 (%)')
-    plt.title('不同BMI分组的Y染色体浓度分布')
-    plt.xticks(rotation=45)
+    box_plot = plt.boxplot(bmi_data, labels=valid_groups, patch_artist=True)
+    # 设置箱线图颜色
+    colors = ['lightblue', 'lightgreen', 'orange', 'lightcoral', 'pink']
+    for patch, color in zip(box_plot['boxes'], colors[:len(box_plot['boxes'])]):
+        patch.set_facecolor(color)
+    
+    plt.xlabel('BMI分组', fontsize=12, fontweight='bold')
+    plt.ylabel('Y染色体浓度 (%)', fontsize=12, fontweight='bold')
+    plt.title('不同BMI分组的Y染色体浓度分布', fontsize=14, fontweight='bold', pad=20)
+    plt.xticks(rotation=45, fontsize=10)
+    plt.grid(True, alpha=0.3)
     
     # 4. 孕周分组箱线图
     plt.subplot(3, 3, 4)
@@ -212,43 +258,54 @@ def create_visualizations(df):
     valid_ga_groups = df['ga_group'].dropna().unique()
     ga_data = [df[df['ga_group'] == group]['Y染色体浓度'].values for group in valid_ga_groups]
     
-    plt.boxplot(ga_data, labels=valid_ga_groups)
-    plt.xlabel('孕周分组')
-    plt.ylabel('Y染色体浓度 (%)')
-    plt.title('不同孕周分组的Y染色体浓度分布')
-    plt.xticks(rotation=45)
+    box_plot = plt.boxplot(ga_data, labels=valid_ga_groups, patch_artist=True)
+    # 设置箱线图颜色
+    colors = ['lightcyan', 'lightsteelblue', 'lightblue', 'skyblue', 'deepskyblue']
+    for patch, color in zip(box_plot['boxes'], colors[:len(box_plot['boxes'])]):
+        patch.set_facecolor(color)
+    
+    plt.xlabel('孕周分组', fontsize=12, fontweight='bold')
+    plt.ylabel('Y染色体浓度 (%)', fontsize=12, fontweight='bold')
+    plt.title('不同孕周分组的Y染色体浓度分布', fontsize=14, fontweight='bold', pad=20)
+    plt.xticks(rotation=45, fontsize=10)
+    plt.grid(True, alpha=0.3)
     
     # 5. Y染色体浓度分布直方图
     plt.subplot(3, 3, 5)
     plt.hist(df['Y染色体浓度'], bins=30, alpha=0.7, color='skyblue', edgecolor='black')
-    plt.axvline(x=4, color='red', linestyle='--', label='NIPT失败阈值 (4%)')
-    plt.xlabel('Y染色体浓度 (%)')
-    plt.ylabel('频数')
-    plt.title('Y染色体浓度分布')
-    plt.legend()
+    plt.axvline(x=4, color='red', linestyle='--', linewidth=2, label='NIPT失败阈值 (4%)')
+    plt.xlabel('Y染色体浓度 (%)', fontsize=12, fontweight='bold')
+    plt.ylabel('频数', fontsize=12, fontweight='bold')
+    plt.title('Y染色体浓度分布', fontsize=14, fontweight='bold', pad=20)
+    plt.legend(fontsize=10)
+    plt.grid(True, alpha=0.3)
     
     # 6. 孕周分布直方图
     plt.subplot(3, 3, 6)
     plt.hist(df['检测孕周'], bins=20, alpha=0.7, color='lightgreen', edgecolor='black')
-    plt.xlabel('检测孕周 (周)')
-    plt.ylabel('频数')
-    plt.title('检测孕周分布')
+    plt.xlabel('检测孕周 (周)', fontsize=12, fontweight='bold')
+    plt.ylabel('频数', fontsize=12, fontweight='bold')
+    plt.title('检测孕周分布', fontsize=14, fontweight='bold', pad=20)
+    plt.grid(True, alpha=0.3)
     
     # 7. BMI分布直方图
     plt.subplot(3, 3, 7)
     plt.hist(df['孕妇BMI'], bins=20, alpha=0.7, color='lightcoral', edgecolor='black')
-    plt.xlabel('孕妇BMI (kg/m²)')
-    plt.ylabel('频数')
-    plt.title('孕妇BMI分布')
+    plt.xlabel('孕妇BMI (kg/m²)', fontsize=12, fontweight='bold')
+    plt.ylabel('频数', fontsize=12, fontweight='bold')
+    plt.title('孕妇BMI分布', fontsize=14, fontweight='bold', pad=20)
+    plt.grid(True, alpha=0.3)
     
     # 8. 孕周与BMI的散点图（颜色表示Y染色体浓度）
     plt.subplot(3, 3, 8)
     scatter = plt.scatter(df['检测孕周'], df['孕妇BMI'], c=df['Y染色体浓度'], 
-                         cmap='viridis', alpha=0.6, s=20)
-    plt.colorbar(scatter, label='Y染色体浓度 (%)')
-    plt.xlabel('检测孕周 (周)')
-    plt.ylabel('孕妇BMI (kg/m²)')
-    plt.title('孕周与BMI关系 (颜色表示Y染色体浓度)')
+                         cmap='viridis', alpha=0.6, s=30)
+    cbar = plt.colorbar(scatter)
+    cbar.set_label('Y染色体浓度 (%)', fontsize=12, fontweight='bold')
+    plt.xlabel('检测孕周 (周)', fontsize=12, fontweight='bold')
+    plt.ylabel('孕妇BMI (kg/m²)', fontsize=12, fontweight='bold')
+    plt.title('孕周与BMI关系 (颜色表示Y染色体浓度)', fontsize=14, fontweight='bold', pad=20)
+    plt.grid(True, alpha=0.3)
     
     # 9. NIPT失败率对比
     plt.subplot(3, 3, 9)
@@ -264,22 +321,37 @@ def create_visualizations(df):
             bmi_labels.append(f"{group}\n(n={len(group_data)})")
     
     bars = plt.bar(range(len(bmi_failure_rates)), bmi_failure_rates, 
-                   color=['lightblue', 'lightgreen', 'orange', 'lightcoral', 'pink'])
-    plt.xlabel('BMI分组')
-    plt.ylabel('NIPT失败率 (%)')
-    plt.title('不同BMI分组的NIPT失败率')
-    plt.xticks(range(len(bmi_labels)), bmi_labels, rotation=45)
+                   color=['lightblue', 'lightgreen', 'orange', 'lightcoral', 'pink'],
+                   alpha=0.8, edgecolor='black', linewidth=1)
+    plt.xlabel('BMI分组', fontsize=12, fontweight='bold')
+    plt.ylabel('NIPT失败率 (%)', fontsize=12, fontweight='bold')
+    plt.title('不同BMI分组的NIPT失败率', fontsize=14, fontweight='bold', pad=20)
+    plt.xticks(range(len(bmi_labels)), bmi_labels, rotation=45, fontsize=10)
+    plt.grid(True, alpha=0.3, axis='y')
     
     # 在柱子上添加数值标签
     for i, (bar, rate) in enumerate(zip(bars, bmi_failure_rates)):
         plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
-                f'{rate:.1f}%', ha='center', va='bottom')
+                f'{rate:.1f}%', ha='center', va='bottom', fontsize=10, fontweight='bold')
     
-    plt.tight_layout()
-    plt.savefig('t1_analysis_visualizations.png', dpi=300, bbox_inches='tight')
-    plt.show()
+    # 调整布局和保存
+    plt.tight_layout(pad=3.0)
     
-    print("可视化图表已保存为: t1_analysis_visualizations.png")
+    # 保存图表
+    try:
+        plt.savefig('t1_analysis_visualizations_v1.2.png', dpi=300, bbox_inches='tight', 
+                   facecolor='white', edgecolor='none')
+        print("可视化图表已保存为: t1_analysis_visualizations_v1.2.png")
+    except Exception as e:
+        print(f"保存图表时出错: {e}")
+        plt.savefig('t1_analysis_visualizations_v1.2.png', dpi=150, bbox_inches='tight')
+    
+    # 显示图表
+    try:
+        plt.show()
+    except Exception as e:
+        print(f"显示图表时出错: {e}")
+        print("图表已保存，但无法在终端中显示")
     
     return fig
 
