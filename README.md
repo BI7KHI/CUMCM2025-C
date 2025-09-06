@@ -22,15 +22,11 @@ M2 Claude-3.5-Sonnet `<br> `
 
 M3 Grok-4 `<br>`
 
-M4 Gemini -2.5-Pro
-
 AI太好用了你知道吧
 
 # @Chat 使用的生成式模型
 
 M1 Doubao-T1 `<br> `
-
-M2 Gemini -2.5-Pro
 
 M2 Grok-4
 
