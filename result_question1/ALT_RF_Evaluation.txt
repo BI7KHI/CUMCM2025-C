@@ -1,0 +1,11 @@
+=== ALT_RF 模型评估 ===
+AUC: 1.0000  (95% CI: 1.0000 ~ 1.0000)
+AP: 1.0000
+Brier: 0.0346  (95% CI: 0.0329 ~ 0.0363)
+LogLoss: 0.1918
+Best Threshold (F1-max): 0.3575
+Accuracy@thr: 0.9991, F1@thr: 0.9991
+
+Confusion Matrix:
+[[540   1]
+ [  0 540]]

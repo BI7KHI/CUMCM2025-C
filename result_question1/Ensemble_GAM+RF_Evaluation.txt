@@ -1,0 +1,11 @@
+=== Ensemble_GAM+RF 模型评估 ===
+AUC: 0.9981  (95% CI: 0.9969 ~ 0.9992)
+AP: 0.9980
+Brier: 0.1067  (95% CI: 0.1033 ~ 0.1097)
+LogLoss: 0.3846
+Best Threshold (F1-max): 0.4857
+Accuracy@thr: 0.9824, F1@thr: 0.9826
+
+Confusion Matrix:
+[[524  17]
+ [  2 538]]

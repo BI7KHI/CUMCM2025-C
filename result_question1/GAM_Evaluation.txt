@@ -1,0 +1,11 @@
+=== GAM 模型评估 ===
+AUC: 0.6765  (95% CI: 0.6499 ~ 0.7092)
+AP: 0.6745
+Brier: 0.2257  (95% CI: 0.2176 ~ 0.2321)
+LogLoss: 0.6409
+Best Threshold (F1-max): 0.3368
+Accuracy@thr: 0.5615, F1@thr: 0.6815
+
+Confusion Matrix:
+[[100 441]
+ [ 33 507]]

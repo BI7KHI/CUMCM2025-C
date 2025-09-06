@@ -11,9 +11,50 @@ from sklearn.svm import SVC
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc, precision_recall_curve, accuracy_score
 from sklearn.utils import resample
 import os
+import matplotlib.font_manager as fm
 
-# 设置中文显示
-plt.rcParams['font.sans-serif'] = ['SimHei']
+# 统一中文字体设置（优先使用项目根目录 fonts/ 与常用CJK字体）
+def configure_chinese_font():
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(script_dir)
+        fonts_dir = os.path.join(project_root, "fonts")
+        if os.path.isdir(fonts_dir):
+            for file_name in os.listdir(fonts_dir):
+                if file_name.lower().endswith((".ttf", ".otf")):
+                    try:
+                        fm.fontManager.addfont(os.path.join(fonts_dir, file_name))
+                    except Exception:
+                        pass
+
+        candidate_families = [
+            "Noto Sans CJK SC",
+            "Noto Sans SC",
+            "Noto Sans S Chinese",
+            "Source Han Sans SC",
+            "Source Han Sans CN",
+            "SimHei",
+            "WenQuanYi Zen Hei",
+            "Microsoft YaHei",
+            "STHeiti",
+            "PingFang SC",
+            "Arial Unicode MS",
+            "DejaVu Sans",
+        ]
+
+        installed_families = set(f.name for f in fm.fontManager.ttflist)
+        for family in candidate_families:
+            if family in installed_families:
+                plt.rcParams['font.family'] = [family]
+                plt.rcParams['font.sans-serif'] = [family]
+                return family
+    except Exception:
+        pass
+    return None
+
+chosen_font = configure_chinese_font()
+if not chosen_font:
+    print("Warning: 未检测到可用中文字体，建议运行项目根目录的 setup_chinese_fonts.py 后重试。")
 plt.rcParams['axes.unicode_minus'] = False
 
 # 获取当前脚本的绝对路径
