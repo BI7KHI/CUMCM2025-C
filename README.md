@@ -33,7 +33,7 @@ M2 Grok-4
 # 赛题完成进度
 
 * [X] T1	>>CUMCM2025-C\scripts_v1.3_t1	||	CUMCM2025-C\results_v1.3
-* [ ] T2
+* [X] T2	>>CUMCM2025-C\scripts_T2_v1.1	>>	CUMCM2025-C\t2_scripts_v2.2\t2_enhanced_final.py	||	CUMCM2025-C\results_v2.2
 * [ ] T3
 * [ ] T4
 
@@ -45,7 +45,7 @@ M2 Grok-4
 
 @Kyunana097(BG7KMT)
 
-# About题目T2
+# About题目T2的v1.1与v2.2的对比及其题目分析推及论文撰写
 
 原题设：临床证明，男胎孕妇的BMI是影响胎儿Y染色体浓度的最早达标时间（即浓度达到或超过4%的最早时间）的主要因素。试对男胎孕妇的BMI进行合理分组，给出每组的BMI区间和最佳NIPT时点，使得孕妇可能的潜在风险最小，并分析检测误差对结果的影响。
 
