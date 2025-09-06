@@ -8,8 +8,11 @@ from statsmodels.formula.api import ols
 import os
 
 # 设置中文显示
-plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Liberation Sans', 'SimHei', 'Arial Unicode MS']
 plt.rcParams['axes.unicode_minus'] = False
+# 如果有中文字体问题，可以使用英文标签
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互式后端
 
 # 获取当前脚本的绝对路径
 script_dir = os.path.dirname(os.path.abspath(__file__))

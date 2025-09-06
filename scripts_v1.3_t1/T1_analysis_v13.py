@@ -13,9 +13,7 @@ warnings.filterwarnings('ignore')
 import scipy.stats
 
 # -------------------------- 1. 环境配置与数据加载 --------------------------
-# 设置中文字体与绘图样式
-plt.rcParams['font.sans-serif'] = ['SimHei']
-plt.rcParams['axes.unicode_minus'] = False
+# 设置绘图样式
 plt.style.use('seaborn-v0_8-whitegrid')
 
 # 创建结果保存目录
@@ -85,84 +83,84 @@ print(f"Number of pregnant women: {df_clean['孕妇代码'].nunique()}")
 # 3.1 单变量分布：Y浓度、孕周、BMI
 fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-# Y浓度分布
+# Y concentration distribution
 axes[0].hist(df_clean["Y浓度_修正后"], bins=30, color="#2E86AB", alpha=0.7, edgecolor="black")
-axes[0].axvline(0.04, color="red", linestyle="--", linewidth=2, label="达标阈值(4%)")
-axes[0].set_title("Y染色体浓度(修正后)分布", fontsize=12, fontweight="bold")
-axes[0].set_xlabel("Y浓度(修正后)")
-axes[0].set_ylabel("频数")
+axes[0].axvline(0.04, color="red", linestyle="--", linewidth=2, label="Threshold (4%)")
+axes[0].set_title("Y Chromosome Concentration Distribution (Corrected)", fontsize=12, fontweight="bold")
+axes[0].set_xlabel("Y Concentration (Corrected)")
+axes[0].set_ylabel("Frequency")
 axes[0].legend()
 
-# 孕周分布
+# Gestational age distribution
 axes[1].hist(df_clean["孕周_连续值"], bins=20, color="#A23B72", alpha=0.7, edgecolor="black")
-axes[1].axvline(12, color="orange", linestyle="--", linewidth=2, label="早期/中期分界(12周)")
-axes[1].set_title("检测孕周分布", fontsize=12, fontweight="bold")
-axes[1].set_xlabel("孕周（连续值）")
-axes[1].set_ylabel("频数")
+axes[1].axvline(12, color="orange", linestyle="--", linewidth=2, label="Early/Mid Trimester (12 weeks)")
+axes[1].set_title("Gestational Age Distribution", fontsize=12, fontweight="bold")
+axes[1].set_xlabel("Gestational Age (Continuous)")
+axes[1].set_ylabel("Frequency")
 axes[1].legend()
 
-# BMI分布
+# BMI distribution
 axes[2].hist(pd.to_numeric(df_clean["孕妇BMI"], errors="coerce"), bins=25, color="#F18F01", alpha=0.7, edgecolor="black")
-axes[2].set_title("孕妇BMI分布", fontsize=12, fontweight="bold")
+axes[2].set_title("Maternal BMI Distribution", fontsize=12, fontweight="bold")
 axes[2].set_xlabel("BMI")
-axes[2].set_ylabel("频数")
+axes[2].set_ylabel("Frequency")
 
 plt.tight_layout()
-plt.savefig("result_question1/单变量分布.png", dpi=300, bbox_inches="tight")
+plt.savefig("result_question1/univariate_distributions.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 # 3.2 双变量关联：Y浓度与孕周、Y浓度与BMI
 fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
-# Y浓度 vs 孕周（添加LOWESS平滑曲线）
+# Y concentration vs gestational age (with LOWESS smooth curve)
 sns.scatterplot(x="孕周_连续值", y="Y浓度_修正后", data=df_clean, ax=axes[0], 
                 color="#2E86AB", alpha=0.6, s=30, edgecolor="none")
 sns.regplot(x="孕周_连续值", y="Y浓度_修正后", data=df_clean, ax=axes[0], 
             scatter=False, color="red", lowess=True, line_kws={"linewidth":2})
 corr_gest, p_gest = pearsonr(df_clean["孕周_连续值"], df_clean["Y浓度_修正后"])
-axes[0].set_title(f"Y浓度 vs 孕周(Pearson r={corr_gest:.3f}, p<{p_gest:.4f})", 
+axes[0].set_title(f"Y Concentration vs Gestational Age (Pearson r={corr_gest:.3f}, p<{p_gest:.4f})", 
                   fontsize=12, fontweight="bold")
-axes[0].set_xlabel("孕周（连续值）")
-axes[0].set_ylabel("Y浓度(修正后)")
-axes[0].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="达标阈值(4%)")
+axes[0].set_xlabel("Gestational Age (Continuous)")
+axes[0].set_ylabel("Y Concentration (Corrected)")
+axes[0].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="Threshold (4%)")
 axes[0].legend()
 
-# Y浓度 vs BMI（按BMI四分位分组）
+# Y concentration vs BMI (grouped by BMI quartiles)
 df_clean["BMI_四分位"] = pd.qcut(pd.to_numeric(df_clean["孕妇BMI"], errors="coerce"), 
-                               4, labels=["Q1(低)", "Q2", "Q3", "Q4(高)"])
+                               4, labels=["Q1(Low)", "Q2", "Q3", "Q4(High)"])
 sns.boxplot(x="BMI_四分位", y="Y浓度_修正后", data=df_clean, ax=axes[1], 
             palette=["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"])
 corr_bmi, p_bmi = pearsonr(pd.to_numeric(df_clean["孕妇BMI"], errors="coerce"), df_clean["Y浓度_修正后"])
-axes[1].set_title(f"Y浓度 vs BMI四分位(Pearson r={corr_bmi:.3f}, p<{p_bmi:.4f})", 
+axes[1].set_title(f"Y Concentration vs BMI Quartiles (Pearson r={corr_bmi:.3f}, p<{p_bmi:.4f})", 
                   fontsize=12, fontweight="bold")
-axes[1].set_xlabel("BMI四分位")
-axes[1].set_ylabel("Y浓度(修正后)")
-axes[1].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="达标阈值(4%)")
+axes[1].set_xlabel("BMI Quartiles")
+axes[1].set_ylabel("Y Concentration (Corrected)")
+axes[1].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="Threshold (4%)")
 axes[1].legend()
 
 plt.tight_layout()
-plt.savefig("result_question1/双变量关联分析.png", dpi=300, bbox_inches="tight")
+plt.savefig("result_question1/bivariate_association_analysis.png", dpi=300, bbox_inches="tight")
 plt.close()
 
-# 3.3 交互效应：不同BMI分组下Y浓度-孕周趋势
+# 3.3 Interaction effect: Y concentration-gestational age trends by BMI groups
 fig, ax = plt.subplots(figsize=(12, 7))
-for bmi_group, color in zip(["Q1(低)", "Q2", "Q3", "Q4(高)"], ["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"]):
+for bmi_group, color in zip(["Q1(Low)", "Q2", "Q3", "Q4(High)"], ["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"]):
     group_data = df_clean[df_clean["BMI_四分位"] == bmi_group]
-    # 拟合线性趋势
+    # Fit linear trend
     z = np.polyfit(group_data["孕周_连续值"], group_data["Y浓度_修正后"], 1)
     p = np.poly1d(z)
-    # 绘图
+    # Plot
     sns.scatterplot(x="孕周_连续值", y="Y浓度_修正后", data=group_data, ax=ax, 
-                    label=f"{bmi_group}(斜率={z[0]:.4f})", color=color, alpha=0.6, s=30)
+                    label=f"{bmi_group} (slope={z[0]:.4f})", color=color, alpha=0.6, s=30)
     ax.plot(group_data["孕周_连续值"], p(group_data["孕周_连续值"]), color=color, linewidth=2)
 
-ax.set_title("不同BMI分组下Y浓度-孕周趋势(交互效应可视化)", fontsize=14, fontweight="bold")
-ax.set_xlabel("孕周（连续值）")
-ax.set_ylabel("Y浓度（修正后）")
-ax.axhline(0.04, color="orange", linestyle="--", linewidth=2, label="达标阈值(4%)")
+ax.set_title("Y Concentration-Gestational Age Trends by BMI Groups (Interaction Effect)", fontsize=14, fontweight="bold")
+ax.set_xlabel("Gestational Age (Continuous)")
+ax.set_ylabel("Y Concentration (Corrected)")
+ax.axhline(0.04, color="orange", linestyle="--", linewidth=2, label="Threshold (4%)")
 ax.legend()
 plt.tight_layout()
-plt.savefig("result_question1/BMI-孕周交互效应.png", dpi=300, bbox_inches="tight")
+plt.savefig("result_question1/BMI_gestational_age_interaction.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 
@@ -228,11 +226,29 @@ coef_summary.to_csv("result_question1/扩展模型系数显著性.csv", index=Fa
 # 5.2 拟合优度：McFadden伪R²（郝老师思路推荐指标）
 def mcfadden_r2(logit_result):
     """计算McFadden伪R²"""
-    ll_null = logit_result.null_deviance / (-2)
+    # McFadden R² = 1 - (LL_model / LL_null)
+    # 在statsmodels中，llnull属性包含空模型的对数似然值
+    try:
+        ll_null = logit_result.llnull
+    except AttributeError:
+        # 如果没有llnull属性，使用null_deviance计算
+        # Deviance = -2 * LL，所以 LL = -Deviance/2
+        ll_null = -logit_result.null_deviance / 2
+    
     ll_model = logit_result.llf
+    
     return 1 - (ll_model / ll_null)
 
 print("\n=== Goodness of Fit ===")
 pseudo_r2 = mcfadden_r2(result2)
 print(f"McFadden Pseudo R²: {pseudo_r2:.4f}")
-print(f"Interpretation: {'Excellent (>0.4)' if pseudo_r2 > 0.4 else 'Good (0.2~0.4)' if pseudo_r2 > 0.2 else 'Fair (<0.2)' if pseudo_r2 > 0.2 else 'Fair (<0.2)'})")
+
+# 修复解释逻辑中的重复条件
+if pseudo_r2 > 0.4:
+    interpretation = "Excellent (>0.4)"
+elif pseudo_r2 > 0.2:
+    interpretation = "Good (0.2~0.4)"
+else:
+    interpretation = "Fair (<0.2)"
+    
+print(f"Interpretation: {interpretation}")
