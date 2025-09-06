@@ -24,8 +24,8 @@ warnings.filterwarnings('ignore')
 import os
 
 # 设置中文显示
-plt.rcParams['font.sans-serif'] = ['Droid Sans Fallback', 'DejaVu Sans', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']  # 设置中文字体为黑体或微软雅黑
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号'-'显示为方块的问题
 
 # 获取当前脚本的绝对路径
 script_dir = os.path.dirname(os.path.abspath(__file__))
