@@ -20,8 +20,9 @@ M1 Doubao-Seed-1.6 `<br>`
 
 M2 Claude-3.5-Sonnet `<br> `
 
-M3 Grok-4 `<br> `
-<AI太好用了你知道吧>
+M3 Grok-4 `<br>`
+
+AI太好用了你知道吧
 
 # @Chat 使用的生成式模型
 
@@ -31,7 +32,7 @@ M2 Grok-4
 
 # 赛题完成进度
 
-* [X] T1	CUMCM2025-C\scripts_v1.3_t1
+* [X] T1	>>CUMCM2025-C\scripts_v1.3_t1	||	CUMCM2025-C\results_v1.3
 * [ ] T2
 * [ ] T3
 * [ ] T4
