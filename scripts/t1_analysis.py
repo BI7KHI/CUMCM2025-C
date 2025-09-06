@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,6 +6,7 @@ import seaborn as sns
 from scipy import stats
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
+from statsmodels.genmod.families import Binomial, links
 import os
 
 # 设置中文显示
@@ -66,19 +68,20 @@ for col in numeric_columns:
     male_fetus_data[col] = male_fetus_data[col].apply(safe_float_convert)
 
 # 将孕周转换为数值，如11w+6转换为11+6/7=11.857
-def convert_gestational_age(age_str):
+def parse_gestational_age(s):
+    """Parse gestational age from string format."""
     try:
-        if isinstance(age_str, str):
-            if '+' in age_str:
-                weeks, days = age_str.split('w+')
-                return float(weeks) + float(days)/7
-            elif 'w' in age_str:
-                return float(age_str.split('w')[0])
-        return float(age_str)
+        s = str(s).strip()
+        if "w+" in s:
+            w, d = s.replace("w", "").split("+")
+            return int(w) + int(d) / 7
+        elif "w" in s:
+            return int(s.replace("w", ""))
+        else:
+            return np.nan
     except:
         return np.nan
-
-male_fetus_data['孕周数值'] = male_fetus_data['孕妇本次检测时的孕周'].apply(convert_gestational_age)
+male_fetus_data['孕周数值'] = male_fetus_data['孕妇本次检测时的孕周'].apply(parse_gestational_age)
 
 # 相关分析：计算Y染色体浓度与各指标的相关系数
 correlation_vars = ['孕周数值', '孕妇BMI指标', '孕妇年龄', '孕妇身高', '孕妇体重', 
@@ -127,7 +130,6 @@ results = model.fit()
 # 保存回归结果
 with open(os.path.join(results_dir, 'T1_regression_results.txt'), 'w', encoding='utf-8') as f:
     f.write(str(results.summary()))
-
 print("\n回归分析结果:")
 print(results.summary())
 
@@ -192,6 +194,39 @@ plt.plot(scatter_data['孕妇BMI指标'], f(scatter_data['孕妇BMI指标']), 'r
 plt.xlabel('BMI')
 plt.ylabel('Y染色体浓度')
 plt.title('Y染色体浓度与BMI的关系')
+
+# 双变量分析：Y浓度与孕周、Y浓度与BMI
+fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+
+# Y浓度 vs 孕周（添加LOWESS平滑曲线）
+sns.scatterplot(x="孕周数值", y="Y染色体浓度", data=male_fetus_data, ax=axes[0], 
+                color="#2E86AB", alpha=0.6, s=30, edgecolor="none")
+sns.regplot(x="孕周数值", y="Y染色体浓度", data=male_fetus_data, ax=axes[0], 
+            scatter=False, color="red", lowess=True, line_kws={"linewidth":2})
+corr_gest, p_gest = stats.pearsonr(male_fetus_data["孕周数值"], male_fetus_data["Y染色体浓度"])
+axes[0].set_title(f"Y浓度 vs 孕周(Pearson r={corr_gest:.3f}, p<{p_gest:.4f})", 
+                  fontsize=12, fontweight="bold")
+axes[0].set_xlabel("孕周（连续值）")
+axes[0].set_ylabel("Y浓度")
+axes[0].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="达标阈值(4%)")
+axes[0].legend()
+
+# Y浓度 vs BMI（按BMI四分位分组）
+male_fetus_data["BMI_四分位"] = pd.qcut(pd.to_numeric(male_fetus_data["孕妇BMI指标"], errors="coerce"), 
+                               4, labels=["Q1(低)", "Q2", "Q3", "Q4(高)"])
+sns.boxplot(x="BMI_四分位", y="Y染色体浓度", data=male_fetus_data, ax=axes[1], 
+            palette=["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"])
+corr_bmi, p_bmi = stats.pearsonr(pd.to_numeric(male_fetus_data["孕妇BMI指标"], errors="coerce"), male_fetus_data["Y染色体浓度"])
+axes[1].set_title(f"Y浓度 vs BMI四分位(Pearson r={corr_bmi:.3f}, p<{p_bmi:.4f})", 
+                  fontsize=12, fontweight="bold")
+axes[1].set_xlabel("BMI四分位")
+axes[1].set_ylabel("Y浓度")
+axes[1].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="达标阈值(4%)")
+axes[1].legend()
+
+plt.tight_layout()
+plt.savefig(os.path.join(results_dir, '双变量关联分析.png'), dpi=300, bbox_inches="tight")
+plt.close()
 
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, 'T1_y_chromosome_vs_gestational_age_bmi.png'), dpi=300)

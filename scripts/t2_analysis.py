@@ -73,9 +73,16 @@ male_fetus_data['孕周数值'] = male_fetus_data['孕妇本次检测时的孕�
 # 过滤掉包含NaN值的行
 male_fetus_data = male_fetus_data.dropna(subset=['孕妇BMI指标', 'Y染色体浓度', '孕周数值'])
 
+# 初始化一个字符串构建器来存储摘要
+summary_output = []
+
 # 任务T2：对男胎孕妇的BMI进行合理分组，确定每组的最佳NIPT时点
 
 # 1. 分析BMI分布
+summary_output.append("--- 1. 孕妇BMI分布分析 ---")
+bmi_description = male_fetus_data['孕妇BMI指标'].describe()
+summary_output.append(f"BMI统计描述:\\n{bmi_description}\\n")
+
 plt.figure(figsize=(10, 6))
 sns.histplot(male_fetus_data['孕妇BMI指标'], kde=True, bins=30)
 plt.title('孕妇BMI分布')
@@ -84,17 +91,20 @@ plt.ylabel('频数')
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, 'T2_bmi_distribution.png'), dpi=300)
 plt.close()
+summary_output.append("BMI分布直方图已保存为 'T2_bmi_distribution.png'。\\n")
 
 # 2. 使用K-means聚类对BMI进行分组
+summary_output.append("--- 2. 使用K-means聚类对BMI进行分组 ---")
 # 确定最佳聚类数
 bmi_values = male_fetus_data['孕妇BMI指标'].values.reshape(-1, 1)
 silhouette_scores = []
+summary_output.append("轮廓系数分析 (用于确定最佳聚类数):")
 for n_clusters in range(2, 8):
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
     cluster_labels = kmeans.fit_predict(bmi_values)
     silhouette_avg = silhouette_score(bmi_values, cluster_labels)
     silhouette_scores.append(silhouette_avg)
-    print(f'聚类数: {n_clusters}, 轮廓系数: {silhouette_avg}')
+    summary_output.append(f'  - 聚类数: {n_clusters}, 轮廓系数: {silhouette_avg:.4f}')
 
 # 可视化轮廓系数
 plt.figure(figsize=(10, 6))
@@ -105,224 +115,249 @@ plt.ylabel('轮廓系数')
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, 'T2_silhouette_scores.png'), dpi=300)
 plt.close()
+summary_output.append("轮廓系数可视化图已保存为 'T2_silhouette_scores.png'。")
 
-# 选择最佳聚类数（这里我们选择4个聚类，与题目中提到的BMI分组类似）
+# 根据轮廓系数和业务理解（例如，低、中、高、超高BMI），选择4作为最佳聚类数。
 n_clusters = 4
+summary_output.append(f"\\n选择的最佳聚类数为: {n_clusters}。这个选择是基于轮廓系数的分析以及与常规BMI分组（如偏瘦、正常、超重、肥胖）的对应关系。\\n")
 kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
 male_fetus_data['BMI聚类'] = kmeans.fit_predict(bmi_values)
 
 # 分析每个聚类的BMI范围
+summary_output.append("各BMI聚类的范围:")
 cluster_bmi_ranges = {}
-for cluster in range(n_clusters):
+for cluster in sorted(male_fetus_data['BMI聚类'].unique()):
     cluster_data = male_fetus_data[male_fetus_data['BMI聚类'] == cluster]
     min_bmi = cluster_data['孕妇BMI指标'].min()
     max_bmi = cluster_data['孕妇BMI指标'].max()
     cluster_bmi_ranges[cluster] = (min_bmi, max_bmi)
-    print(f'聚类 {cluster}: BMI范围 [{min_bmi:.2f}, {max_bmi:.2f}]')
+    summary_output.append(f'  - 聚类 {cluster}: BMI范围 [{min_bmi:.2f}, {max_bmi:.2f}], 样本数: {len(cluster_data)}')
+summary_output.append('')
 
 # 3. 对每个BMI聚类，确定最佳NIPT时点
-# 首先，找出每个孕妇最早达到Y染色体浓度≥4%的孕周
+summary_output.append("--- 3. 各BMI聚类的最佳NIPT时点分析 ---")
+# 定义“达标”：Y染色体浓度 >= 0.04 (4%)
+Y_THRESHOLD = 0.04
+
+# 找出每个孕妇最早达到Y染色体浓度阈值的孕周
 pregnant_women = male_fetus_data['孕妇代码'].unique()
-early达标数据 = []
+early_success_data = []
 
 for woman in pregnant_women:
     woman_data = male_fetus_data[male_fetus_data['孕妇代码'] == woman].sort_values('孕周数值')
-    # 找到最早的Y染色体浓度≥4%的记录
-    达标记录 = woman_data[woman_data['Y染色体浓度'] >= 0.04]  # 4%
-    if len(达标记录) > 0:
-        最早达标记录 = 达标记录.iloc[0]
-        early达标数据.append({
+    # 找到最早的达标记录
+    success_records = woman_data[woman_data['Y染色体浓度'] >= Y_THRESHOLD]
+    if not success_records.empty:
+        first_success_record = success_records.iloc[0]
+        early_success_data.append({
             '孕妇代码': woman,
-            'BMI': 最早达标记录['孕妇BMI指标'],
-            'BMI聚类': 最早达标记录['BMI聚类'],
-            '最早达标孕周': 最早达标记录['孕周数值'],
-            'Y染色体浓度': 最早达标记录['Y染色体浓度']
+            'BMI': first_success_record['孕妇BMI指标'],
+            'BMI聚类': first_success_record['BMI聚类'],
+            '最早达标孕周': first_success_record['孕周数值'],
+            'Y染色体浓度': first_success_record['Y染色体浓度']
         })
     else:
-        # 如果没有达标记录，取最大孕周作为参考
-        max_week_record = woman_data.iloc[-1]
-        early达标数据.append({
+        # 如果没有达标记录，记录为未达标
+        last_record = woman_data.iloc[-1]
+        early_success_data.append({
             '孕妇代码': woman,
-            'BMI': max_week_record['孕妇BMI指标'],
-            'BMI聚类': max_week_record['BMI聚类'],
+            'BMI': last_record['孕妇BMI指标'],
+            'BMI聚类': last_record['BMI聚类'],
             '最早达标孕周': np.nan,  # 未达标
-            'Y染色体浓度': max_week_record['Y染色体浓度']
+            'Y染色体浓度': last_record['Y染色体浓度']
         })
 
-early达标_df = pd.DataFrame(early达标数据)
+early_success_df = pd.DataFrame(early_success_data)
 
 # 分析每个BMI聚类的最佳NIPT时点
 cluster_optimal_times = {}
-for cluster in range(n_clusters):
-    cluster_data = early达标_df[early达标_df['BMI聚类'] == cluster]
-    # 计算该聚类中已达标的孕妇比例
-    达标比例 = cluster_data['最早达标孕周'].notna().mean()
+for cluster in sorted(early_success_df['BMI聚类'].unique()):
+    cluster_data = early_success_df[early_success_df['BMI聚类'] == cluster]
     
-    # 对于已达标的孕妇，计算最佳NIPT时点（这里选择达标孕周的平均值减去一个标准差，以确保较高的达标概率）
-    达标数据 = cluster_data[cluster_data['最早达标孕周'].notna()]
-    if len(达标数据) > 0:
-        平均达标孕周 = 达标数据['最早达标孕周'].mean()
-        标准差 = 达标数据['最早达标孕周'].std()
-        # 为了安全起见，选择平均达标孕周作为最佳时点（或者平均达标孕周+0.5标准差，确保更高的达标概率）
-        最佳时点 = 平均达标孕周 + 0.5 * 标准差
+    # 计算达标比例
+    success_rate = cluster_data['最早达标孕周'].notna().mean()
+    
+    # 对于已达标的孕妇，计算统计数据
+    successful_data = cluster_data.dropna(subset=['最早达标孕周'])
+    if not successful_data.empty:
+        mean_success_week = successful_data['最早达标孕周'].mean()
+        std_success_week = successful_data['最早达标孕周'].std()
+        # 最佳时点定义为平均达标孕周，以在覆盖大部分人群和避免过晚检测之间取得平衡。
+        # 也可以考虑更保守的策略，如 mean + 0.5 * std，以提高首次检测成功率。
+        # 这里我们选择平均值作为推荐时点。
+        optimal_time = mean_success_week
+        
         cluster_optimal_times[cluster] = {
             'BMI范围': cluster_bmi_ranges[cluster],
-            '达标比例': 达标比例,
-            '平均达标孕周': 平均达标孕周,
-            '标准差': 标准差,
-            '最佳NIPT时点': 最佳时点
+            '达标比例': success_rate,
+            '平均达标孕周': mean_success_week,
+            '达标孕周标准差': std_success_week,
+            '推荐NIPT时点 (周)': optimal_time
         }
-        print(f'聚类 {cluster} (BMI {cluster_bmi_ranges[cluster][0]:.2f}-{cluster_bmi_ranges[cluster][1]:.2f}):')
-        print(f'  达标比例: {达标比例:.2%}')
-        print(f'  平均达标孕周: {平均达标孕周:.2f}周')
-        print(f'  最佳NIPT时点: {最佳时点:.2f}周')
+        summary_output.append(f'聚类 {cluster} (BMI {cluster_bmi_ranges[cluster][0]:.2f}-{cluster_bmi_ranges[cluster][1]:.2f}):')
+        summary_output.append(f'  - 达标比例: {success_rate:.2%}')
+        summary_output.append(f'  - 平均达标孕周: {mean_success_week:.2f}周')
+        summary_output.append(f'  - 推荐NIPT时点: {optimal_time:.2f}周 (建议取整为 {np.ceil(optimal_time):.0f} 周后)')
     else:
         cluster_optimal_times[cluster] = {
             'BMI范围': cluster_bmi_ranges[cluster],
             '达标比例': 0,
             '平均达标孕周': np.nan,
-            '标准差': np.nan,
-            '最佳NIPT时点': np.nan
+            '达标孕周标准差': np.nan,
+            '推荐NIPT时点 (周)': np.nan
         }
-        print(f'聚类 {cluster} (BMI {cluster_bmi_ranges[cluster][0]:.2f}-{cluster_bmi_ranges[cluster][1]:.2f}):')
-        print(f'  所有孕妇均未达标')
+        summary_output.append(f'聚类 {cluster} (BMI {cluster_bmi_ranges[cluster][0]:.2f}-{cluster_bmi_ranges[cluster][1]:.2f}):')
+        summary_output.append(f'  - 所有孕妇均未达标 (Y染色体浓度 < {Y_THRESHOLD*100}%)')
+summary_output.append('')
 
 # 4. 分析不同BMI分组的风险
-# 风险定义：如果检测时间过早，可能导致未达标，需要重新检测，增加成本和焦虑
-# 同时，如果检测时间过晚，可能错过最佳治疗窗口期
+summary_output.append("--- 4. 不同BMI分组的检测风险分析 ---")
+summary_output.append("风险定义: 综合考虑“过早检测导致失败”和“过晚检测错过干预窗口”的可能。")
+summary_output.append("风险评分公式: (推荐NIPT时点 - 12) * 0.1 + (1 - 达标比例) * 0.9")
+summary_output.append("  - 假设理想的最早检测时间为12周。")
+summary_output.append("  - 权重分配上，更关注“检测失败”的风险。\\n")
 
-# 计算每个BMI聚类的潜在风险评分
-# 风险评分 = (最佳时点 - 12) * 0.1 + (1 - 达标比例) * 0.9
-# 这里假设12周是理想的最早检测时间，权重可以根据实际情况调整
 cluster_risks = {}
 for cluster in cluster_optimal_times:
-    if not np.isnan(cluster_optimal_times[cluster]['最佳NIPT时点']):
-        时点风险 = max(0, cluster_optimal_times[cluster]['最佳NIPT时点'] - 12) * 0.1
-        达标风险 = (1 - cluster_optimal_times[cluster]['达标比例']) * 0.9
-        总风险 = 时点风险 + 达标风险
+    if not np.isnan(cluster_optimal_times[cluster]['推荐NIPT时点 (周)']):
+        time_risk = max(0, cluster_optimal_times[cluster]['推荐NIPT时点 (周)'] - 12) * 0.1
+        success_risk = (1 - cluster_optimal_times[cluster]['达标比例']) * 0.9
+        total_risk = time_risk + success_risk
         cluster_risks[cluster] = {
-            '时点风险': 时点风险,
-            '达标风险': 达标风险,
-            '总风险': 总风险
+            '时点风险': time_risk,
+            '达标风险': success_risk,
+            '总风险': total_risk
         }
-        print(f'聚类 {cluster} 风险评分: 时点风险={时点风险:.2f}, 达标风险={达标风险:.2f}, 总风险={总风险:.2f}')
+        summary_output.append(f'聚类 {cluster} 风险评分:')
+        summary_output.append(f'  - 时点风险: {time_risk:.3f}')
+        summary_output.append(f'  - 达标风险: {success_risk:.3f}')
+        summary_output.append(f'  - 总风险: {total_risk:.3f}')
+summary_output.append('')
 
 # 5. 分析检测误差对结果的影响
-# 模拟检测误差：假设Y染色体浓度测量存在±5%的误差
-male_fetus_data_with_error = male_fetus_data.copy()
-# 添加随机误差
+summary_output.append("--- 5. 检测误差对结果影响的敏感性分析 ---")
+# 模拟检测误差：假设Y染色体浓度测量存在±5%的相对误差
+error_percentage = 0.05
+summary_output.append(f"模拟 {error_percentage:.0%} 的随机测量误差...\\n")
+
 np.random.seed(42)
-error_percentage = 0.05  # 5%误差
+male_fetus_data_with_error = male_fetus_data.copy()
 male_fetus_data_with_error['Y染色体浓度_误差'] = male_fetus_data_with_error['Y染色体浓度'] * \
     (1 + np.random.normal(0, error_percentage, len(male_fetus_data_with_error)))
 
 # 重新计算考虑误差后的达标时间
-pregnant_women = male_fetus_data_with_error['孕妇代码'].unique()
-early达标数据_error = []
-
+early_success_data_error = []
 for woman in pregnant_women:
     woman_data = male_fetus_data_with_error[male_fetus_data_with_error['孕妇代码'] == woman].sort_values('孕周数值')
-    # 找到最早的Y染色体浓度≥4%的记录（考虑误差）
-    达标记录 = woman_data[woman_data['Y染色体浓度_误差'] >= 0.04]  # 4%
-    if len(达标记录) > 0:
-        最早达标记录 = 达标记录.iloc[0]
-        early达标数据_error.append({
+    success_records = woman_data[woman_data['Y染色体浓度_误差'] >= Y_THRESHOLD]
+    if not success_records.empty:
+        first_success_record = success_records.iloc[0]
+        early_success_data_error.append({
             '孕妇代码': woman,
-            'BMI': 最早达标记录['孕妇BMI指标'],
-            'BMI聚类': 最早达标记录['BMI聚类'],
-            '最早达标孕周': 最早达标记录['孕周数值'],
-            'Y染色体浓度_误差': 最早达标记录['Y染色体浓度_误差']
+            'BMI聚类': first_success_record['BMI聚类'],
+            '最早达标孕周': first_success_record['孕周数值'],
         })
     else:
-        # 如果没有达标记录，取最大孕周作为参考
-        max_week_record = woman_data.iloc[-1]
-        early达标数据_error.append({
+        last_record = woman_data.iloc[-1]
+        early_success_data_error.append({
             '孕妇代码': woman,
-            'BMI': max_week_record['孕妇BMI指标'],
-            'BMI聚类': max_week_record['BMI聚类'],
-            '最早达标孕周': np.nan,  # 未达标
-            'Y染色体浓度_误差': max_week_record['Y染色体浓度_误差']
+            'BMI聚类': last_record['BMI聚类'],
+            '最早达标孕周': np.nan,
         })
 
-early达标_df_error = pd.DataFrame(early达标数据_error)
+early_success_df_error = pd.DataFrame(early_success_data_error)
 
 # 分析考虑误差后每个BMI聚类的达标情况变化
-print("\n考虑检测误差后的结果变化：")
-for cluster in range(n_clusters):
-    original_data = early达标_df[early达标_df['BMI聚类'] == cluster]
-    error_data = early达标_df_error[early达标_df_error['BMI聚类'] == cluster]
+summary_output.append("考虑检测误差后的达标比例变化:")
+for cluster in sorted(early_success_df['BMI聚类'].unique()):
+    original_success_rate = early_success_df[early_success_df['BMI聚类'] == cluster]['最早达标孕周'].notna().mean()
+    error_success_rate = early_success_df_error[early_success_df_error['BMI聚类'] == cluster]['最早达标孕周'].notna().mean()
     
-    original_success_rate = original_data['最早达标孕周'].notna().mean()
-    error_success_rate = error_data['最早达标孕周'].notna().mean()
-    
-    print(f'聚类 {cluster} (BMI {cluster_bmi_ranges[cluster][0]:.2f}-{cluster_bmi_ranges[cluster][1]:.2f}):')
-    print(f'  原始达标比例: {original_success_rate:.2%}')
-    print(f'  考虑误差后达标比例: {error_success_rate:.2%}')
-    print(f'  变化: {(error_success_rate - original_success_rate):.2%}')
+    summary_output.append(f'聚类 {cluster} (BMI {cluster_bmi_ranges[cluster][0]:.2f}-{cluster_bmi_ranges[cluster][1]:.2f}):')
+    summary_output.append(f'  - 原始达标比例: {original_success_rate:.2%}')
+    summary_output.append(f'  - 考虑误差后达标比例: {error_success_rate:.2%}')
+    summary_output.append(f'  - 变化: {(error_success_rate - original_success_rate):+.2%}')
+summary_output.append('')
 
 # 6. 可视化结果
+summary_output.append("--- 6. 可视化结果 ---")
 # 6.1 BMI聚类结果
 plt.figure(figsize=(12, 8))
-sns.scatterplot(x='孕妇BMI指标', y='孕周数值', hue='BMI聚类', data=male_fetus_data, palette='viridis')
-# 添加聚类中心垂直线
-for cluster in range(n_clusters):
-    cluster_center = kmeans.cluster_centers_[cluster][0]
-    plt.axvline(x=cluster_center, color='r', linestyle='--', alpha=0.5)
-plt.title('BMI聚类结果')
+sns.scatterplot(x='孕妇BMI指标', y='孕周数值', hue='BMI聚类', data=male_fetus_data, palette='viridis', legend='full')
+# 添加聚类中心和范围
+for cluster in sorted(cluster_bmi_ranges.keys()):
+    min_bmi, max_bmi = cluster_bmi_ranges[cluster]
+    plt.axvline(x=min_bmi, color='grey', linestyle='--', alpha=0.5)
+    plt.axvline(x=max_bmi, color='grey', linestyle='--', alpha=0.5)
+plt.title('BMI聚类结果及孕周分布')
 plt.xlabel('BMI')
-plt.ylabel('孕周')
+plt.ylabel('孕周 (周)')
+plt.legend(title='BMI聚类')
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, 'T2_bmi_clustering.png'), dpi=300)
 plt.close()
+summary_output.append("BMI聚类结果图已保存为 'T2_bmi_clustering.png'。")
 
 # 6.2 各聚类的最佳NIPT时点比较
 plt.figure(figsize=(12, 6))
 clusters = list(cluster_optimal_times.keys())
-optimal_times = [cluster_optimal_times[cluster]['最佳NIPT时点'] for cluster in clusters]
-bmi_ranges = [f"{cluster_bmi_ranges[cluster][0]:.1f}-{cluster_bmi_ranges[cluster][1]:.1f}" for cluster in clusters]
-success_rates = [cluster_optimal_times[cluster]['达标比例'] * 100 for cluster in clusters]
+optimal_times = [cluster_optimal_times[c]['推荐NIPT时点 (周)'] for c in clusters]
+bmi_ranges_str = [f"聚类 {c}\\n({cluster_bmi_ranges[c][0]:.1f}-{cluster_bmi_ranges[c][1]:.1f})" for c in clusters]
+success_rates_pct = [cluster_optimal_times[c]['达标比例'] * 100 for c in clusters]
 
-# 创建柱状图
-bar_width = 0.35
-x = np.arange(len(clusters))
-fig, ax1 = plt.subplots(figsize=(12, 6))
+fig, ax1 = plt.subplots(figsize=(12, 7))
 
-bar1 = ax1.bar(x - bar_width/2, optimal_times, bar_width, label='最佳NIPT时点(周)')
-ax1.set_xlabel('BMI聚类')
-ax1.set_ylabel('最佳NIPT时点(周)', color='blue')
-ax1.tick_params(axis='y', labelcolor='blue')
-ax1.set_xticks(x)
-ax1.set_xticklabels(bmi_ranges)
+# 柱状图表示推荐时点
+bar1 = ax1.bar(bmi_ranges_str, optimal_times, label='推荐NIPT时点 (周)', color='skyblue')
+ax1.set_xlabel('BMI聚类及范围')
+ax1.set_ylabel('推荐NIPT时点 (周)', color='darkblue')
+ax1.tick_params(axis='y', labelcolor='darkblue')
+ax1.set_ylim(bottom=10)
 
-# 创建第二个y轴显示达标比例
+# 第二个y轴显示达标比例
 ax2 = ax1.twinx()
-bar2 = ax2.bar(x + bar_width/2, success_rates, bar_width, label='达标比例(%)', color='green')
-ax2.set_ylabel('达标比例(%)', color='green')
+line1 = ax2.plot(bmi_ranges_str, success_rates_pct, 'o-', color='green', label='达标比例 (%)')
+ax2.set_ylabel('达标比例 (%)', color='green')
 ax2.tick_params(axis='y', labelcolor='green')
+ax2.set_ylim(0, 105)
 
 # 添加图例
-ax1.legend(loc='upper left')
-ax2.legend(loc='upper right')
+lines, labels = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+ax2.legend(lines + lines2, labels + labels2, loc='upper center')
 
-plt.title('各BMI聚类的最佳NIPT时点和达标比例')
+plt.title('各BMI聚类的推荐NIPT时点和达标比例')
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, 'T2_optimal_nipt_times.png'), dpi=300)
 plt.close()
+summary_output.append("各BMI组的推荐NIPT时点和达标比例图已保存为 'T2_optimal_nipt_times.png'。\\n")
 
-# 保存结果到Excel
+# 7. 保存结果到Excel和总结文件
+summary_output.append("--- 7. 结果汇总 ---")
 results_data = []
-for cluster in cluster_optimal_times:
+for cluster in sorted(cluster_optimal_times.keys()):
     cluster_data = cluster_optimal_times[cluster]
     results_data.append({
         'BMI聚类': cluster,
         'BMI范围下限': cluster_data['BMI范围'][0],
         'BMI范围上限': cluster_data['BMI范围'][1],
-        '达标比例': cluster_data['达标比例'],
-        '平均达标孕周': cluster_data['平均达标孕周'],
-        '最佳NIPT时点': cluster_data['最佳NIPT时点']
+        '达标比例': f"{cluster_data['达标比例']:.2%}",
+        '平均达标孕周': f"{cluster_data['平均达标孕周']:.2f}",
+        '推荐NIPT时点 (周)': f"{cluster_data['推荐NIPT时点 (周)']:.2f}",
+        '总风险评分': f"{cluster_risks.get(cluster, {}).get('总风险', np.nan):.3f}"
     })
 
 results_df = pd.DataFrame(results_data)
-results_df.to_excel(os.path.join(results_dir, 'T2_bmi_grouping_results.xlsx'), index=False)
+excel_path = os.path.join(results_dir, 'T2_bmi_grouping_results.xlsx')
+results_df.to_excel(excel_path, index=False)
+summary_output.append(f"详细结果已保存到Excel文件: '{excel_path}'")
 
-print("\nT2任务分析完成！结果已保存到results目录。")
+# 生成最终总结
+final_summary = "\\n".join(summary_output)
+summary_file_path = os.path.join(results_dir, 'T2_analysis_summary.txt')
+with open(summary_file_path, 'w', encoding='utf-8') as f:
+    f.write("=============== T2任务：男胎孕妇BMI分组及NIPT时点分析报告 ===============\\n\\n")
+    f.write(final_summary)
+    f.write("\\n\\n================================= 报告结束 =================================")
+
+print(f"\\nT2任务分析完成！详细分析报告已保存到: {summary_file_path}")

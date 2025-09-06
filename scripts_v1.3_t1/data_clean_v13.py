@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+from pygam import LinearGAM, s
+import os
+import io
+from contextlib import redirect_stdout
 
 def parse_gestational_age(s):
     try:
@@ -14,9 +18,41 @@ def parse_gestational_age(s):
     except:
         return np.nan
 
-df = pd.read_csv("dataA.csv", encoding="utf-8")
+# Define paths relative to the project root
+data_path = "scripts_v1.3_t1/dataA.csv"
+output_path = "scripts_v1.3_t1/dataA_Processed_v13.csv"
+results_dir = "scripts_v1.3_t1/result_question1"
+
+# Create results directory if it doesn't exist
+if not os.path.exists(results_dir):
+    os.makedirs(results_dir)
+
+df = pd.read_csv(data_path, encoding="utf-8")
 df["G"] = df["检测孕周"].apply(parse_gestational_age)
 # Additional cleaning: drop rows with NaN in key columns
 df_clean = df.dropna(subset=["G", "Y染色体浓度", "孕妇BMI"])
-df_clean.to_csv("dataA_Processed_v13.csv", index=False, encoding="utf-8")
-print("Processed data exported to dataA_Processed_v13.csv")
+df_clean.to_csv(output_path, index=False, encoding="utf-8")
+print(f"Processed data exported to {output_path}")
+
+
+# --- GAM Model Analysis ---
+print("\n--- Starting GAM Model Analysis ---")
+
+# Prepare data for GAM
+# Using G (gestational age) and BMI as predictors for Y chromosome concentration
+X = df_clean[['G', '孕妇BMI']].values
+y = df_clean['Y染色体浓度'].values
+
+# Build and fit the GAM model
+# Using splines for both features
+gam = LinearGAM(s(0, n_splines=20) + s(1, n_splines=20)).fit(X, y)
+
+# Save the summary to a file
+summary_file_path = os.path.join(results_dir, 'T1_gam_from_clean_script_results.txt')
+
+print(f"Saving GAM model summary to: {summary_file_path}")
+with open(summary_file_path, 'w', encoding='utf-8') as f:
+    with redirect_stdout(f):
+        gam.summary()
+
+print("GAM model analysis complete.")
