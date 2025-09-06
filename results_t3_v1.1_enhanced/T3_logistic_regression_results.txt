@@ -3,8 +3,8 @@
 Dep. Variable:               X浓度_统计异常   No. Observations:                 1081
 Model:                          Logit   Df Residuals:                     1073
 Method:                           MLE   Df Model:                            7
-Date:                   日, 07 9月 2025   Pseudo R-squ.:                 0.02697
-Time:                        03:39:43   Log-Likelihood:                -225.53
+Date:                Sun, 07 Sep 2025   Pseudo R-squ.:                 0.02697
+Time:                        03:59:29   Log-Likelihood:                -225.53
 converged:                       True   LL-Null:                       -231.78
 Covariance Type:            nonrobust   LLR p-value:                   0.08521
 ==============================================================================
