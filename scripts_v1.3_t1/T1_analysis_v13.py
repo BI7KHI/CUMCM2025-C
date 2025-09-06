@@ -4,243 +4,263 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib.font_manager as fm
+import statsmodels.api as sm
 from statsmodels.formula.api import glm
 from statsmodels.genmod.families import Binomial, links
+from sklearn.preprocessing import StandardScaler
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.stattools import durbin_watson
 from scipy.stats import pearsonr
 import warnings
 warnings.filterwarnings('ignore')
 import scipy.stats
+from pygam import LogisticGAM, s, f
+import io
+from contextlib import redirect_stdout
 
 # -------------------------- 1. 环境配置与数据加载 --------------------------
 # 设置中文字体与绘图样式
-# plt.rcParams['font.sans-serif'] = ['SimHei']
-# plt.rcParams['axes.unicode_minus'] = False
-plt.style.use('seaborn-v0_8-whitegrid')
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
 
-# 创建结果保存目录
-results_dir = "scripts_v1.3_t1/result_question1"
+# 创建结果目录
+results_dir = "results_v1.3"
 os.makedirs(results_dir, exist_ok=True)
 
-# 加载数据（需替换为实际数据路径，此处按题目隐含的"男胎检测数据"格式设计）
-# 数据列名需与《CΜβ.pdf》附录1一致：A(样本序号)、B(孕妇代码)、C(年龄)、D(身高)、E(体重)、J(孕周)、K(BMI)、V(Y染色体浓度)等
-df = pd.read_csv("scripts_v1.3_t1/dataA_Processed_v13.csv", encoding="utf-8")  # 若为Excel格式，替换为pd.read_excel("男胎检测数据.xlsx")
+# 加载数据
+df_clean = pd.read_csv("scripts_v1.3_t1/dataA_Processed_v13.csv", encoding="utf-8")
+print(f"Original samples: {len(df_clean)}, Cleaned samples: {len(df_clean)}")
 
-# 查看核心列是否存在（按《CΜβ.pdf》附录1校验）
-required_cols = ["孕妇代码", "检测孕周", "孕妇BMI", "身高", "体重", "Y染色体浓度", "原始读段数", "在参考基因组上比对的比例", "重复读段的比例", "GC含量"]
-assert all(col in df.columns for col in required_cols), "数据列名与《Cβ.pdf》附录1不匹配,请检查列名"
+# -------------------------- 2. 数据预处理与探索性分析(EDA) --------------------------
+# 确保Y浓度为数值类型
+df_clean["Y浓度_修正后"] = pd.to_numeric(df_clean["Y染色体浓度"], errors="coerce")
+df_clean.rename(columns={'G': '孕周_连续值'}, inplace=True)
 
 
-# -------------------------- 2. 数据预处理（按郝老师思路实现） --------------------------
-def parse_gestational_age(s):
-    """Parse gestational age from string format."""
-    try:
-        s = str(s).strip()
-        if "w+" in s:
-            w, d = s.replace("w", "").split("+")
-            return int(w) + int(d) / 7
-        elif "w" in s:
-            return int(s.replace("w", ""))
-        else:
-            return np.nan
-    except:
-        return np.nan
-
-def correct_y_concentration(p, eps=1e-4):
-    """Correct Y concentration to avoid extremes."""
-    p_numeric = pd.to_numeric(p, errors="coerce")
-    return np.clip(p_numeric, eps, 1 - eps)
-
-def verify_bmi(weight, height):
-    """Verify BMI calculation."""
-    weight_numeric = pd.to_numeric(weight, errors="coerce")
-    height_numeric = pd.to_numeric(height, errors="coerce")
-    calculated_bmi = weight_numeric / ((height_numeric / 100) ** 2)
-    return calculated_bmi
-
-# 2.1 孕周转换
-df["孕周_连续值"] = df["检测孕周"].apply(parse_gestational_age)
-
-# 2.2 Y染色体浓度修正
-df["Y浓度_修正后"] = correct_y_concentration(df["Y染色体浓度"])
-
-# 2.3 BMI一致性校验（标记异常值，不直接删除）
-df["BMI_计算值"] = verify_bmi(df["体重"], df["身高"])
-df["BMI_差值"] = np.abs(pd.to_numeric(df["孕妇BMI"], errors="coerce") - df["BMI_计算值"])
-df["BMI_异常标记"] = (df["BMI_差值"] > 1).astype(int)  # 差值>1视为异常，后续模型控制
-
-# 2.4 测序质量指标标准化（控制技术偏差）
-quality_cols = ["在参考基因组上比对的比例", "重复读段的比例", "GC含量"]
-for col in quality_cols:
-    df[col + "_标准化"] = (pd.to_numeric(df[col], errors="coerce") - 
-                          pd.to_numeric(df[col], errors="coerce").mean()) / \
-                          pd.to_numeric(df[col], errors="coerce").std()
-
-# 2.5 删除关键缺失值（保留有效样本）
-df_clean = df.dropna(subset=["孕周_连续值", "Y浓度_修正后", "孕妇BMI", "孕妇代码"]).copy()
-print(f"Original samples: {len(df)}, Cleaned samples: {len(df_clean)}")
+# 打印孕妇数量
 print(f"Number of pregnant women: {df_clean['孕妇代码'].nunique()}")
 
+# -------------------------- 3. 特征工程与共线性诊断 --------------------------
+# 标准化数值特征
+scaler = StandardScaler()
+features_to_scale = ["在参考基因组上比对的比例", "重复读段的比例", "GC含量"]
+for feature in features_to_scale:
+    df_clean[feature + "_标准化"] = scaler.fit_transform(df_clean[[feature]])
 
-# -------------------------- 3. 探索性数据分析（按郝老师思路可视化） --------------------------
-# 3.1 单变量分布：Y浓度、孕周、BMI
-fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+# 计算相关系数矩阵
+correlation_matrix = df_clean[["孕周_连续值", "孕妇BMI"] + [f + "_标准化" for f in features_to_scale]].corr()
+print("\n=== Correlation Matrix ===")
+print(correlation_matrix)
 
-# Y浓度分布
-axes[0].hist(df_clean["Y浓度_修正后"], bins=30, color="#2E86AB", alpha=0.7, edgecolor="black")
-axes[0].axvline(0.04, color="red", linestyle="--", linewidth=2, label="Threshold (4%)")
-axes[0].set_title("Distribution of Corrected Y-chromosome Concentration", fontsize=12, fontweight="bold")
-axes[0].set_xlabel("Corrected Y-concentration")
-axes[0].set_ylabel("Frequency")
-axes[0].legend()
+# 计算VIF (方差膨胀因子)
+vif_data = df_clean[["孕周_连续值", "孕妇BMI"] + [f + "_标准化" for f in features_to_scale]].dropna()
+vif_data = sm.add_constant(vif_data)
 
-# 孕周分布
-axes[1].hist(df_clean["孕周_连续值"], bins=20, color="#A23B72", alpha=0.7, edgecolor="black")
-axes[1].axvline(12, color="orange", linestyle="--", linewidth=2, label="Early/Mid-term Threshold (12w)")
-axes[1].set_title("Distribution of Gestational Age", fontsize=12, fontweight="bold")
-axes[1].set_xlabel("Gestational Age (continuous)")
-axes[1].set_ylabel("Frequency")
-axes[1].legend()
+vif_df = pd.DataFrame()
+vif_df["Variable"] = vif_data.columns
+vif_df["VIF"] = [variance_inflation_factor(vif_data.values, i) for i in range(vif_data.shape[1])]
 
-# BMI分布
-axes[2].hist(pd.to_numeric(df_clean["孕妇BMI"], errors="coerce"), bins=25, color="#F18F01", alpha=0.7, edgecolor="black")
-axes[2].set_title("Distribution of Maternal BMI", fontsize=12, fontweight="bold")
-axes[2].set_xlabel("BMI")
-axes[2].set_ylabel("Frequency")
+print("\n=== Variance Inflation Factor (VIF) ===")
+print(vif_df)
 
-plt.tight_layout()
-plt.savefig(os.path.join(results_dir, "单变量分布.png"), dpi=300, bbox_inches="tight")
-plt.close()
-
-# 3.2 双变量关联：Y浓度与孕周、Y浓度与BMI
-fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-
-# Y浓度 vs 孕周（添加LOWESS平滑曲线）
-sns.scatterplot(x="孕周_连续值", y="Y浓度_修正后", data=df_clean, ax=axes[0], 
-                color="#2E86AB", alpha=0.6, s=30, edgecolor="none")
-sns.regplot(x="孕周_连续值", y="Y浓度_修正后", data=df_clean, ax=axes[0], 
-            scatter=False, color="red", lowess=True, line_kws={"linewidth":2})
-corr_gest, p_gest = pearsonr(df_clean["孕周_连续值"], df_clean["Y浓度_修正后"])
-axes[0].set_title(f"Y-concentration vs Gestational Age (Pearson r={corr_gest:.3f}, p<{p_gest:.4f})", 
-                  fontsize=12, fontweight="bold")
-axes[0].set_xlabel("Gestational Age (continuous)")
-axes[0].set_ylabel("Corrected Y-concentration")
-axes[0].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="Threshold (4%)")
-axes[0].legend()
-
-# Y浓度 vs BMI（按BMI四分位分组）
-df_clean["BMI_四分位"] = pd.qcut(pd.to_numeric(df_clean["孕妇BMI"], errors="coerce"), 
-                               4, labels=["Q1 (Low)", "Q2", "Q3", "Q4 (High)"])
-sns.boxplot(x="BMI_四分位", y="Y浓度_修正后", data=df_clean, ax=axes[1], 
-            palette=["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"])
-corr_bmi, p_bmi = pearsonr(pd.to_numeric(df_clean["孕妇BMI"], errors="coerce"), df_clean["Y浓度_修正后"])
-axes[1].set_title(f"Y-concentration vs BMI Quartiles (Pearson r={corr_bmi:.3f}, p<{p_bmi:.4f})", 
-                  fontsize=12, fontweight="bold")
-axes[1].set_xlabel("BMI Quartile")
-axes[1].set_ylabel("Corrected Y-concentration")
-axes[1].axhline(0.04, color="orange", linestyle="--", linewidth=2, label="Threshold (4%)")
-axes[1].legend()
-
-plt.tight_layout()
-plt.savefig(os.path.join(results_dir, "双变量关联分析.png"), dpi=300, bbox_inches="tight")
-plt.close()
-
-# 3.3 交互效应：不同BMI分组下Y浓度-孕周趋势
-fig, ax = plt.subplots(figsize=(12, 7))
-for bmi_group, color in zip(["Q1 (Low)", "Q2", "Q3", "Q4 (High)"], ["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"]):
-    group_data = df_clean[df_clean["BMI_四分位"] == bmi_group]
-    # 拟合线性趋势
-    z = np.polyfit(group_data["孕周_连续值"], group_data["Y浓度_修正后"], 1)
-    p = np.poly1d(z)
-    # 绘图
-    sns.scatterplot(x="孕周_连续值", y="Y浓度_修正后", data=group_data, ax=ax, 
-                    label=f"{bmi_group}(slope={z[0]:.4f})", color=color, alpha=0.6, s=30)
-    ax.plot(group_data["孕周_连续值"], p(group_data["孕周_连续值"]), color=color, linewidth=2)
-
-ax.set_title("Y-concentration vs Gestational Age Trend by BMI Group (Interaction)", fontsize=14, fontweight="bold")
-ax.set_xlabel("Gestational Age (continuous)")
-ax.set_ylabel("Corrected Y-concentration")
-ax.axhline(0.04, color="orange", linestyle="--", linewidth=2, label="Threshold (4%)")
-ax.legend()
-plt.tight_layout()
-plt.savefig(os.path.join(results_dir, "BMI-孕周交互效应.png"), dpi=300, bbox_inches="tight")
-plt.close()
-
-
-# -------------------------- 4. 模型构建（按郝老师Logit模型框架） --------------------------
-# 4.1 定义变量（转换为数值型）
+# -------------------------- 4. 模型构建与比较 --------------------------
+# 定义模型中使用的变量
 df_model = df_clean.copy()
-df_model["BMI_数值"] = pd.to_numeric(df_model["孕妇BMI"], errors="coerce")
-df_model["孕周_BMI交互"] = df_model["孕周_连续值"] * df_model["BMI_数值"]  # 交互项
-df_model["比对比例_标准化"] = pd.to_numeric(df_model["在参考基因组上比对的比例_标准化"], errors="coerce")
-df_model["重复读段比例_标准化"] = pd.to_numeric(df_model["重复读段的比例_标准化"], errors="coerce")
-df_model["GC含量_标准化"] = pd.to_numeric(df_model["GC含量_标准化"], errors="coerce")
+# 基于中位数创建二元因变量
+median_y = df_model["Y浓度_修正后"].median()
+df_model["Y_binary"] = (df_model["Y浓度_修正后"] > median_y).astype(int)
 
-# 4.2 构建Logit模型（分数响应模型，按郝老师公式(5)(7)）
-# 模型1：基础模型（无交互项）
-model1 = glm(
-    formula="Y浓度_修正后 ~ 孕周_连续值 + BMI_数值 + 比对比例_标准化 + 重复读段比例_标准化 + GC含量_标准化",
-    data=df_model,
-    family=Binomial(link=links.logit())  # Logit链接，符合郝老师思路
-)
-result1 = model1.fit(cov_type="cluster", cov_kwds={"groups": df_model["孕妇代码"]})  # 聚类稳健方差
 
-# 模型2：扩展模型（含孕周×BMI交互项）
-model2 = glm(
-    formula="Y浓度_修正后 ~ 孕周_连续值 + BMI_数值 + 孕周_BMI交互 + 比对比例_标准化 + 重复读段比例_标准化 + GC含量_标准化",
-    data=df_model,
-    family=Binomial(link=links.logit())
-)
-result2 = model2.fit(cov_type="cluster", cov_kwds={"groups": df_model["孕妇代码"]})  # 聚类稳健方差
+# 诊断因变量
+print("\n=== Dependent Variable Diagnostics ===")
+print(df_model["Y_binary"].value_counts())
 
-# 保存模型结果
-with open(os.path.join(results_dir, "模型1_基础模型(无交互项).txt"), "w", encoding="utf-8") as f:
-    f.write(result1.summary().as_text())
-with open(os.path.join(results_dir, "模型2_扩展模型(含交互项).txt"), "w", encoding="utf-8") as f:
-    f.write(result2.summary().as_text())
+# 准备数据
+X = df_model[["孕周_连续值", "孕妇BMI", "在参考基因组上比对的比例_标准化", "重复读段的比例_标准化", "GC含量_标准化"]]
+X = sm.add_constant(X)
+y = df_model["Y_binary"]
 
-# 4.3 模型比较（似然比检验，按郝老师思路验证交互项必要性）
-lr_stat = -2 * (result1.llf - result2.llf)  # 似然比统计量
-lr_pvalue = 1 - scipy.stats.chi2.cdf(lr_stat, df=1)  # 自由度=1（交互项个数）
+# --- 模型1: 基础模型 (无交互项) ---
+logit_model1 = sm.Logit(y, X.drop(columns=["孕妇BMI"]))
+result1 = logit_model1.fit_regularized(method='l1', alpha=0.1, disp=0)
+with open(os.path.join(results_dir, "模型1_基础模型(无交互项).txt"), "w", encoding="utf-8") as f1:
+    f1.write(result1.summary().as_text())
+
+# --- 模型2: 扩展模型 (含交互项) ---
+X["孕周_BMI交互"] = X["孕周_连续值"] * X["孕妇BMI"]
+logit_model2 = sm.Logit(y, X)
+result2 = logit_model2.fit_regularized(method='l1', alpha=0.1, disp=0)
+
+# --- 模型比较: 似然比检验 ---
+lr_stat = -2 * (result1.llf - result2.llf)
+p_value_lrt = scipy.stats.chi2.sf(lr_stat, df=result2.df_model - result1.df_model)
 print("\n=== 模型比较（似然比检验）===")
 print(f"似然比统计量：{lr_stat:.4f}")
-print(f"p值:{lr_pvalue:.4f}")
-print(f"结论：{'拒绝原假设(交互项显著，扩展模型更优）' if lr_pvalue < 0.05 else '接受原假设(交互项不显著，基础模型更优）'}")
+print(f"p值:{p_value_lrt:.4f}")
+conclusion = "接受原假设(交互项不显著，基础模型更优）" if p_value_lrt > 0.05 else "拒绝原假设(交互项显著，扩展模型更优)"
+print(f"结论：{conclusion}")
 
-# 保存模型比较结果
-with open(os.path.join(results_dir, "模型比较_似然比检验.txt"), "w", encoding="utf-8") as f:
-    f.write(f"似然比统计量：{lr_stat:.4f}\n")
-    f.write(f"p值:{lr_pvalue:.4f}\n")
-    f.write(f"结论：{'拒绝原假设(交互项显著，扩展模型更优）' if lr_pvalue < 0.05 else '接受原假设(交互项不显著，基础模型更优）'}\n")
+# --- 保存和打印扩展模型结果 ---
+# 获取系数、p值等
+summary_df = pd.DataFrame({
+    "变量": result2.params.index,
+    "系数": result2.params.values,
+    "稳健标准误": result2.bse.values,
+    "Z值": result2.tvalues.values,
+    "p值": result2.pvalues.values
+})
+summary_df["显著性"] = summary_df["p值"].apply(lambda p: "***" if p < 0.001 else ("**" if p < 0.01 else ("*" if p < 0.05 else "ns")))
 
-
-# -------------------------- 5. 模型显著性检验与拟合优度（按郝老师要求） --------------------------
-# 5.1 扩展模型（最优模型）系数显著性
 print("\n=== 扩展模型（含交互项）系数显著性 ===")
-coef_summary = result2.params.reset_index()
-coef_summary.columns = ["变量", "系数"]
-coef_summary["稳健标准误"] = result2.bse.values
-coef_summary["Z值"] = result2.tvalues.values
-coef_summary["p值"] = result2.pvalues.values
-coef_summary["显著性"] = coef_summary["p值"].apply(lambda x: "***" if x < 0.001 else "**" if x < 0.01 else "*" if x < 0.05 else "ns")
-print(coef_summary.to_string(index=False))
-coef_summary.to_csv(os.path.join(results_dir, "扩展模型系数显著性.csv"), index=False, encoding="utf-8-sig")
+print(summary_df.to_string(index=False))
 
-# 5.2 拟合优度：McFadden伪R²（修正计算方法）
-print("\n=== Goodness of Fit ===")
-# 使用statsmodels内置方法计算McFadden伪R²，结果更可靠
-pseudo_r2 = result2.pseudo_rsquared(kind='mcf')
-print(f"McFadden Pseudo R²: {pseudo_r2:.4f}")
+# 将详细结果写入文件
+with open(os.path.join(results_dir, "模型2_扩展模型(含交互项).txt"), "w", encoding="utf-8") as f2:
+    f2.write("--- Coefficients and Significance ---\n")
+    f2.write(summary_df.to_string(index=False))
+    f2.write("\n\n--- Full Model Summary ---\n")
+    f2.write(result2.summary().as_text())
 
-# 根据R²值进行解释
-if pseudo_r2 > 0.4:
-    interpretation = "Excellent (>0.4)"
-elif pseudo_r2 > 0.2:
-    interpretation = "Good (0.2~0.4)"
-else:
-    interpretation = "Fair (<0.2)"
-print(f"Interpretation: {interpretation}")
+# -------------------------- 5. 拟合优度与相关性分析 --------------------------
+# print("\n=== Goodness of Fit ===")
+# # McFadden's Pseudo R²
+# mcfadden_r2 = result2.pseudo_rsquared(kind='mcf')
+# print(f"McFadden Pseudo R²: {mcfadden_r2:.4f}")
+# # 根据R²值进行解释
+# if mcfadden_r2 > 0.4:
+#     interpretation = "Excellent (>0.4)"
+# elif mcfadden_r2 > 0.2:
+#     interpretation = "Good (0.2~0.4)"
+# else:
+#     interpretation = "Fair (<0.2)"
+# print(f"Interpretation: {interpretation}")
 
-# 保留原有的相关性输出
-# 注意：此处的r和p值是Y浓度与孕周的简单皮尔逊相关性，与整个模型的拟合优度是两个概念
-print(f"Pearson correlation (Y-conc vs Gest. Age): r={corr_gest:.3f}, p<{p_gest:.4f}")
+# # Durbin-Watson 检验
+# dw_stat = durbin_watson(result2.resid)
+# print(f"Durbin-Watson: {dw_stat:.2f}")
+
+# # Pearson 相关性
+# corr_gest, p_gest = pearsonr(df_model["孕周_连续值"], df_model["Y浓度_修正后"])
+# # 注意：此处的r和p值是Y浓度与孕周的简单皮尔逊相关性，与整个模型的拟合优度是两个概念
+# print(f"Pearson correlation (Y-conc vs Gest. Age): r={corr_gest:.3f}, p<{p_gest:.4f}")
+
+
+# -------------------------- 6. GAM模型优化拟合 --------------------------
+print("\n=== GAM Model Fitting (Optimization) ===")
+
+# 准备数据，确保没有缺失值
+gam_data = df_model.dropna(subset=[
+    "Y_binary", "孕周_连续值", "孕妇BMI", 
+    "在参考基因组上比对的比例_标准化", "重复读段的比例_标准化", "GC含量_标准化"
+])
+
+X_gam = gam_data[["孕周_连续值", "孕妇BMI", "在参考基因组上比对的比例_标准化", "重复读段的比例_标准化", "GC含量_标准化"]].values
+y_gam = gam_data["Y_binary"].values
+
+# 构建GAM模型：对孕周和BMI使用平滑项，其他为线性项
+gam = LogisticGAM(
+    s(0, n_splines=20, lam=0.6) +  # 孕周_连续值
+    s(1, n_splines=20, lam=0.6) +  # 孕妇BMI
+    f(2) +  # 在参考基因组上比对的比例_标准化
+    f(3) +  # 重复读段的比例_标准化
+    f(4)    # GC含量_标准化
+).fit(X_gam, y_gam)
+
+# 保存GAM模型摘要
+with open(os.path.join(results_dir, "模型3_GAM模型.txt"), "w", encoding="utf-8") as f_out:
+    f = io.StringIO()
+    with redirect_stdout(f):
+        gam.summary()
+    summary_str = f.getvalue()
+    f_out.write(summary_str)
+
+# 打印并解释GAM结果
+print("GAM Model Summary saved to '模型3_GAM模型.txt'")
+gam_pseudo_r2 = gam.statistics_['pseudo_r2']['McFadden']
+print(f"GAM McFadden Pseudo R²: {gam_pseudo_r2:.4f}")
+
+# 可视化GAM的偏依赖图
+fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+fig.suptitle('GAM模型中关键变量的偏依赖图', fontsize=20)
+
+titles = ["孕周", "孕妇BMI"]
+for i, ax in enumerate(axes.flatten()):
+    XX = gam.generate_X_grid(term=i)
+    pdep, confi = gam.partial_dependence(term=i, X=XX, width=0.95)
+    
+    # 绘制偏依赖曲线和置信区间
+    ax.plot(XX[:, i], pdep, color='blue', linewidth=3, label='偏依赖关系')
+    ax.plot(XX[:, i], confi, c='red', ls='--', linewidth=2, label='95% 置信区间')
+    
+    # 添加地毯图 (Rug Plot)
+    sns.rugplot(x=X_gam[:, i], ax=ax, color='black', height=0.05)
+    
+    ax.set_title(f'{titles[i]} 的偏依赖关系', fontsize=16)
+    ax.set_xlabel(titles[i], fontsize=12)
+    ax.set_ylabel("对数几率 (Log-odds)", fontsize=12)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend()
+
+plt.tight_layout(rect=[0, 0, 1, 0.96])
+plt.savefig(os.path.join(results_dir, "GAM_partial_dependence_optimized.png"), dpi=300)
+print("\nGAM partial dependence plot saved to 'GAM_partial_dependence_optimized.png'")
+
+plt.close()
+print("GAM partial dependence plots saved.")
+
+
+# -------------------------- 7. 可视化拟合曲线 --------------------------
+print("\n=== Visualizing GAM Fit ===")
+
+# 获取预测概率
+pred_probs = gam.predict_proba(X_gam)
+
+# 创建一个包含原始数据和预测概率的DataFrame，方便绘图
+plot_df = pd.DataFrame({
+    '孕周': X_gam[:, 0],
+    '孕妇BMI': X_gam[:, 1],
+    'Y_binary': y_gam,
+    'Predicted_Prob': pred_probs
+})
+
+# 添加抖动以便观察
+plot_df['Y_binary_jitter'] = plot_df['Y_binary'] + np.random.normal(0, 0.02, plot_df.shape[0])
+
+
+# 创建图表
+fig, axes = plt.subplots(1, 2, figsize=(18, 8))
+fig.suptitle('GAM 拟合曲线与实际数据点', fontsize=20)
+
+# --- 孕周 vs 预测概率 ---
+# 绘制实际数据点 (使用抖动以避免重叠)
+sns.scatterplot(x='孕周', y='Y_binary_jitter', data=plot_df, ax=axes[0], alpha=0.3, color='gray', label='实际数据 (抖动)')
+# 绘制拟合曲线
+plot_df_sorted_gest = plot_df.sort_values('孕周')
+axes[0].plot(plot_df_sorted_gest['孕周'], plot_df_sorted_gest['Predicted_Prob'], color='red', linewidth=2.5, label='GAM 拟合概率')
+axes[0].set_title('孕周对Y染色体浓度的影响', fontsize=16)
+axes[0].set_xlabel('孕周 (周)', fontsize=12)
+axes[0].set_ylabel('Y染色体浓度 > 中位数的概率', fontsize=12)
+axes[0].set_ylim(-0.1, 1.1)
+axes[0].legend()
+axes[0].grid(True, linestyle='--', alpha=0.6)
+
+# --- 孕妇BMI vs 预测概率 ---
+# 绘制实际数据点
+sns.scatterplot(x='孕妇BMI', y='Y_binary_jitter', data=plot_df, ax=axes[1], alpha=0.3, color='gray', label='实际数据 (抖动)')
+# 绘制拟合曲线
+plot_df_sorted_bmi = plot_df.sort_values('孕妇BMI')
+axes[1].plot(plot_df_sorted_bmi['孕妇BMI'], plot_df_sorted_bmi['Predicted_Prob'], color='red', linewidth=2.5, label='GAM 拟合概率')
+axes[1].set_title('孕妇BMI对Y染色体浓度的影响', fontsize=16)
+axes[1].set_xlabel('孕妇BMI', fontsize=12)
+axes[1].set_ylabel('Y染色体浓度 > 中位数的概率', fontsize=12)
+axes[1].set_ylim(-0.1, 1.1)
+axes[1].legend()
+axes[1].grid(True, linestyle='--', alpha=0.6)
+
+
+plt.tight_layout(rect=[0, 0, 1, 0.96])
+plt.savefig(os.path.join(results_dir, "GAM_fitted_curve.png"), dpi=300)
+print("GAM fitted curve plot saved to 'GAM_fitted_curve.png'")
+plt.close()

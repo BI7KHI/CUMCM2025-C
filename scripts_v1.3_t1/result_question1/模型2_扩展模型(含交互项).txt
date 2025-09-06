@@ -6,7 +6,7 @@ Model Family:                Binomial   Df Model:                            6
 Link Function:                  logit   Scale:                          1.0000
 Method:                          IRLS   Log-Likelihood:                -218.47
 Date:                Sat, 06 Sep 2025   Deviance:                       15.901
-Time:                        13:32:11   Pearson chi2:                     15.9
+Time:                        13:54:55   Pearson chi2:                     15.9
 No. Iterations:                     6   Pseudo R-squ. (CS):          0.0009494
 Covariance Type:              cluster                                         
 ==============================================================================
