@@ -158,7 +158,7 @@ for bmi_group, color in zip(["Q1(低)", "Q2", "Q3", "Q4(高)"], ["#2E86AB", "#A2
 
 ax.set_title("不同BMI分组下Y浓度-孕周趋势(交互效应可视化)", fontsize=14, fontweight="bold")
 ax.set_xlabel("孕周（连续值）")
-ax.set_ylabel("Y浓度（修正后）")
+ax.set_ylabel("Y浓度(修正后)")
 ax.axhline(0.04, color="orange", linestyle="--", linewidth=2, label="达标阈值(4%)")
 ax.legend()
 plt.tight_layout()
@@ -230,9 +230,13 @@ def mcfadden_r2(logit_result):
     """计算McFadden伪R²"""
     ll_null = logit_result.null_deviance / (-2)
     ll_model = logit_result.llf
-    return 1 - (ll_model / ll_null)
+    print(f'Debug: ll_null = {ll_null}, ll_model = {ll_model}')
+    r2 = 1 - (ll_model / ll_null)
+    print(f'Debug: Calculated McFadden R² = {r2}')
+    return r2
 
 print("\n=== Goodness of Fit ===")
 pseudo_r2 = mcfadden_r2(result2)
 print(f"McFadden Pseudo R²: {pseudo_r2:.4f}")
 print(f"Interpretation: {'Excellent (>0.4)' if pseudo_r2 > 0.4 else 'Good (0.2~0.4)' if pseudo_r2 > 0.2 else 'Fair (<0.2)' if pseudo_r2 > 0.2 else 'Fair (<0.2)'})")
+print(f"r={corr_gest:.3f}, p<{p_gest:.4f}")
