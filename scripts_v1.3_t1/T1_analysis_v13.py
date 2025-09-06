@@ -226,18 +226,21 @@ coef_summary["显著性"] = coef_summary["p值"].apply(lambda x: "***" if x < 0.
 print(coef_summary.to_string(index=False))
 coef_summary.to_csv(os.path.join(results_dir, "扩展模型系数显著性.csv"), index=False, encoding="utf-8-sig")
 
-# 5.2 拟合优度：McFadden伪R²（郝老师思路推荐指标）
-def mcfadden_r2(logit_result):
-    """计算McFadden伪R²"""
-    ll_null = logit_result.null_deviance / (-2)
-    ll_model = logit_result.llf
-    print(f'Debug: ll_null = {ll_null}, ll_model = {ll_model}')
-    r2 = 1 - (ll_model / ll_null)
-    print(f'Debug: Calculated McFadden R² = {r2}')
-    return r2
-
+# 5.2 拟合优度：McFadden伪R²（修正计算方法）
 print("\n=== Goodness of Fit ===")
-pseudo_r2 = mcfadden_r2(result2)
+# 使用statsmodels内置方法计算McFadden伪R²，结果更可靠
+pseudo_r2 = result2.pseudo_rsquared(kind='mcf')
 print(f"McFadden Pseudo R²: {pseudo_r2:.4f}")
-print(f"Interpretation: {'Excellent (>0.4)' if pseudo_r2 > 0.4 else 'Good (0.2~0.4)' if pseudo_r2 > 0.2 else 'Fair (<0.2)' if pseudo_r2 > 0.2 else 'Fair (<0.2)'})")
-print(f"r={corr_gest:.3f}, p<{p_gest:.4f}")
+
+# 根据R²值进行解释
+if pseudo_r2 > 0.4:
+    interpretation = "Excellent (>0.4)"
+elif pseudo_r2 > 0.2:
+    interpretation = "Good (0.2~0.4)"
+else:
+    interpretation = "Fair (<0.2)"
+print(f"Interpretation: {interpretation}")
+
+# 保留原有的相关性输出
+# 注意：此处的r和p值是Y浓度与孕周的简单皮尔逊相关性，与整个模型的拟合优度是两个概念
+print(f"Pearson correlation (Y-conc vs Gest. Age): r={corr_gest:.3f}, p<{p_gest:.4f}")
