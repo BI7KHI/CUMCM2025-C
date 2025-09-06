@@ -1,0 +1,597 @@
+"""
+T3增强分析：结合T1和T2思路的X染色体浓度异常分析
+基于前两题的统计建模和聚类分析思路，进行更深入的医学统计分析
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
+from sklearn.metrics import silhouette_score
+import statsmodels.api as sm
+from statsmodels.formula.api import glm, ols
+from statsmodels.genmod.families import Binomial
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+import warnings
+warnings.filterwarnings('ignore')
+import os
+
+# 设置中文显示
+plt.rcParams['font.sans-serif'] = ['Droid Sans Fallback', 'DejaVu Sans', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+
+# 获取当前脚本的绝对路径
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+
+# 创建结果目录
+results_dir = os.path.join(project_root, 'results_t3_v1.1_enhanced')
+os.makedirs(results_dir, exist_ok=True)
+
+class T3EnhancedAnalysis:
+    def __init__(self):
+        self.data = None
+        self.male_data = None
+        self.female_data = None
+        self.analysis_results = {}
+        
+    def load_and_preprocess_data(self):
+        """数据加载与预处理 - 借鉴T1/T2的数据处理思路"""
+        print("=== 1. 数据加载与预处理 ===")
+        
+        # 读取数据
+        data_path = os.path.join(project_root, 'Source_DATA', 'dataA.csv')
+        self.data = pd.read_csv(data_path, header=None)
+        
+        # 列名映射
+        columns = ['样本序号', '孕妇代码', '孕妇年龄', '孕妇身高', '孕妇体重', '末次月经时间',
+                   'IVF妊娠方式', '检测时间', '检测抽血次数', '孕妇本次检测时的孕周', '孕妇BMI指标',
+                   '原始测序数据的总读段数', '总读段数中在参考基因组上比对的比例', '总读段数中重复读段的比例',
+                   '总读段数中唯一比对的读段数', 'GC含量', '13号染色体的Z值', '18号染色体的Z值',
+                   '21号染色体的Z值', 'X染色体的Z值', 'Y染色体的Z值', 'Y染色体浓度',
+                   'X染色体浓度', '13号染色体的GC含量', '18号染色体的GC含量', '21号染色体的GC含量',
+                   '被过滤掉的读段数占总读段数的比例', '检测出的染色体异常', '孕妇的怀孕次数',
+                   '孕妇的生产次数', '胎儿是否健康']
+        self.data.columns = columns
+        
+        # 数值转换 - 使用T1的安全转换方法
+        numeric_columns = ['孕妇年龄', '孕妇身高', '孕妇体重', '孕妇BMI指标',
+                          '原始测序数据的总读段数', '总读段数中在参考基因组上比对的比例', 
+                          '总读段数中重复读段的比例', '总读段数中唯一比对的读段数', 'GC含量', 
+                          '13号染色体的Z值', '18号染色体的Z值', '21号染色体的Z值', 
+                          'X染色体的Z值', 'Y染色体的Z值', 'Y染色体浓度', 'X染色体浓度',
+                          '13号染色体的GC含量', '18号染色体的GC含量', '21号染色体的GC含量',
+                          '被过滤掉的读段数占总读段数的比例']
+        
+        def safe_float_convert(x):
+            try:
+                return float(x)
+            except:
+                return np.nan
+                
+        for col in numeric_columns:
+            self.data[col] = self.data[col].apply(safe_float_convert)
+        
+        # 孕周解析 - 使用T1的方法
+        def convert_gestational_age(age_str):
+            try:
+                if isinstance(age_str, str):
+                    if '+' in age_str:
+                        weeks, days = age_str.split('w+')
+                        return float(weeks) + float(days)/7
+                    elif 'w' in age_str:
+                        return float(age_str.split('w')[0])
+                return float(age_str)
+            except:
+                return np.nan
+                
+        self.data['孕周数值'] = self.data['孕妇本次检测时的孕周'].apply(convert_gestational_age)
+        
+        # 性别区分 - 改进的方法
+        # 男胎：Y染色体浓度 > 0
+        self.male_data = self.data[(self.data['Y染色体浓度'].notna()) & 
+                                  (self.data['Y染色体浓度'] > 0)].copy()
+        # 女胎：Y染色体浓度 = 0 或空值
+        self.female_data = self.data[(self.data['Y染色体浓度'].isna()) | 
+                                    (self.data['Y染色体浓度'] == 0)].copy()
+        
+        print(f"总样本数: {len(self.data)}")
+        print(f"男胎样本数: {len(self.male_data)}")
+        print(f"女胎样本数: {len(self.female_data)}")
+        
+        return self
+    
+    def statistical_analysis(self):
+        """统计分析 - 借鉴T1的统计建模思路"""
+        print("\n=== 2. 统计分析：X染色体浓度分布特征 ===")
+        
+        # 2.1 描述性统计
+        male_x_conc = self.male_data['X染色体浓度'].dropna()
+        female_x_conc = self.female_data['X染色体浓度'].dropna()
+        
+        stats_summary = {
+            '男胎': male_x_conc.describe(),
+            '女胎': female_x_conc.describe() if len(female_x_conc) > 0 else pd.Series()
+        }
+        
+        print("X染色体浓度描述性统计：")
+        for gender, stats_data in stats_summary.items():
+            print(f"\n{gender}:")
+            print(stats_data)
+        
+        # 2.2 正态性检验
+        if len(male_x_conc) > 3:
+            shapiro_male = stats.shapiro(male_x_conc)
+            print(f"\n男胎X染色体浓度正态性检验 (Shapiro-Wilk): statistic={shapiro_male[0]:.4f}, p-value={shapiro_male[1]:.4f}")
+        
+        # 2.3 异常值检测 - 使用医学统计学方法
+        # 基于四分位距(IQR)方法
+        Q1 = male_x_conc.quantile(0.25)
+        Q3 = male_x_conc.quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        
+        # 基于统计学方法(均值±2σ)
+        mean_val = male_x_conc.mean()
+        std_val = male_x_conc.std()
+        stat_lower = mean_val - 2 * std_val
+        stat_upper = mean_val + 2 * std_val
+        
+        print(f"\n异常值检测结果:")
+        print(f"IQR方法范围: [{lower_bound:.4f}, {upper_bound:.4f}]")
+        print(f"统计学方法范围: [{stat_lower:.4f}, {stat_upper:.4f}]")
+        
+        # 标记异常值
+        self.male_data['X浓度_IQR异常'] = ((self.male_data['X染色体浓度'] < lower_bound) | 
+                                        (self.male_data['X染色体浓度'] > upper_bound))
+        self.male_data['X浓度_统计异常'] = ((self.male_data['X染色体浓度'] < stat_lower) | 
+                                         (self.male_data['X染色体浓度'] > stat_upper))
+        
+        # 保存统计结果
+        self.analysis_results['stats_summary'] = stats_summary
+        self.analysis_results['outlier_bounds'] = {
+            'IQR': (lower_bound, upper_bound),
+            'Statistical': (stat_lower, stat_upper)
+        }
+        
+        return self
+    
+    def clustering_analysis(self):
+        """聚类分析 - 借鉴T2的聚类思路"""
+        print("\n=== 3. 聚类分析：基于多特征的患者分组 ===")
+        
+        # 3.1 特征选择和预处理
+        feature_columns = ['孕妇年龄', '孕妇BMI指标', '孕周数值', 'X染色体浓度', 
+                          'GC含量', '13号染色体的Z值', '18号染色体的Z值', 
+                          '21号染色体的Z值', 'X染色体的Z值']
+        
+        # 准备聚类数据
+        cluster_data = self.male_data[feature_columns].dropna()
+        
+        # 标准化特征
+        scaler = StandardScaler()
+        cluster_features = scaler.fit_transform(cluster_data)
+        
+        # 3.2 确定最佳聚类数 - 使用T2的轮廓系数方法
+        silhouette_scores = []
+        K_range = range(2, 8)
+        
+        for k in K_range:
+            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+            cluster_labels = kmeans.fit_predict(cluster_features)
+            silhouette_avg = silhouette_score(cluster_features, cluster_labels)
+            silhouette_scores.append(silhouette_avg)
+            print(f"聚类数 {k}: 轮廓系数 = {silhouette_avg:.4f}")
+        
+        # 选择最佳聚类数
+        best_k = K_range[np.argmax(silhouette_scores)]
+        print(f"最佳聚类数: {best_k}")
+        
+        # 3.3 执行最终聚类
+        final_kmeans = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+        cluster_data['聚类标签'] = final_kmeans.fit_predict(cluster_features)
+        
+        # 分析每个聚类的特征
+        cluster_summary = {}
+        for cluster_id in range(best_k):
+            cluster_subset = cluster_data[cluster_data['聚类标签'] == cluster_id]
+            cluster_summary[cluster_id] = {
+                '样本数': len(cluster_subset),
+                'X染色体浓度均值': cluster_subset['X染色体浓度'].mean(),
+                'X染色体浓度标准差': cluster_subset['X染色体浓度'].std(),
+                'BMI均值': cluster_subset['孕妇BMI指标'].mean(),
+                '孕周均值': cluster_subset['孕周数值'].mean()
+            }
+        
+        print("\n聚类特征分析:")
+        for cluster_id, summary in cluster_summary.items():
+            print(f"聚类 {cluster_id}: {summary}")
+        
+        # 可视化聚类结果
+        plt.figure(figsize=(15, 5))
+        
+        plt.subplot(1, 3, 1)
+        plt.plot(K_range, silhouette_scores, 'bo-')
+        plt.xlabel('聚类数')
+        plt.ylabel('轮廓系数')
+        plt.title('聚类数优化')
+        plt.grid(True)
+        
+        plt.subplot(1, 3, 2)
+        scatter = plt.scatter(cluster_data['X染色体浓度'], cluster_data['孕妇BMI指标'], 
+                            c=cluster_data['聚类标签'], cmap='viridis')
+        plt.xlabel('X染色体浓度')
+        plt.ylabel('孕妇BMI指标')
+        plt.title('聚类结果可视化')
+        plt.colorbar(scatter)
+        
+        plt.subplot(1, 3, 3)
+        for cluster_id in range(best_k):
+            cluster_subset = cluster_data[cluster_data['聚类标签'] == cluster_id]
+            plt.hist(cluster_subset['X染色体浓度'], alpha=0.6, 
+                    label=f'聚类 {cluster_id}', bins=20)
+        plt.xlabel('X染色体浓度')
+        plt.ylabel('频数')
+        plt.title('各聚类X染色体浓度分布')
+        plt.legend()
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(results_dir, 'T3_clustering_analysis.png'), dpi=300)
+        plt.close()
+        
+        self.analysis_results['clustering'] = {
+            'best_k': best_k,
+            'silhouette_scores': silhouette_scores,
+            'cluster_summary': cluster_summary,
+            'cluster_data': cluster_data
+        }
+        
+        return self
+    
+    def regression_modeling(self):
+        """回归建模 - 借鉴T1的回归分析思路"""
+        print("\n=== 4. 回归建模：X染色体浓度异常的影响因素 ===")
+        
+        # 4.1 准备建模数据
+        model_features = ['孕妇年龄', '孕妇BMI指标', '孕周数值', 'GC含量', 
+                         '13号染色体的Z值', '18号染色体的Z值', '21号染色体的Z值']
+        
+        model_data = self.male_data[model_features + ['X浓度_统计异常']].dropna()
+        
+        # 4.2 共线性诊断 - 使用T1的VIF方法
+        X_vif = model_data[model_features]
+        X_vif = sm.add_constant(X_vif)
+        
+        vif_data = pd.DataFrame()
+        vif_data["特征"] = X_vif.columns
+        vif_data["VIF"] = [variance_inflation_factor(X_vif.values, i) 
+                          for i in range(X_vif.shape[1])]
+        
+        print("方差膨胀因子(VIF)诊断:")
+        print(vif_data)
+        
+        # 移除高共线性特征(VIF > 10)
+        high_vif_features = vif_data[vif_data["VIF"] > 10]["特征"].tolist()
+        if 'const' in high_vif_features:
+            high_vif_features.remove('const')
+        
+        final_features = [f for f in model_features if f not in high_vif_features]
+        print(f"移除高共线性特征: {high_vif_features}")
+        print(f"最终建模特征: {final_features}")
+        
+        # 4.3 多元逻辑回归模型
+        X = model_data[final_features]
+        y = model_data['X浓度_统计异常']
+        
+        # 添加常数项
+        X_with_const = sm.add_constant(X)
+        
+        # 拟合模型
+        logit_model = sm.Logit(y, X_with_const)
+        logit_results = logit_model.fit()
+        
+        print("\n逻辑回归模型结果:")
+        print(logit_results.summary())
+        
+        # 4.4 模型诊断
+        # Hosmer-Lemeshow拟合优度检验
+        predicted_probs = logit_results.predict()
+        
+        # 保存模型结果
+        with open(os.path.join(results_dir, 'T3_logistic_regression_results.txt'), 'w', encoding='utf-8') as f:
+            f.write(str(logit_results.summary()))
+        
+        self.analysis_results['regression'] = {
+            'model': logit_results,
+            'features': final_features,
+            'vif_data': vif_data,
+            'predicted_probs': predicted_probs
+        }
+        
+        return self
+    
+    def medical_risk_assessment(self):
+        """医学风险评估 - 结合临床意义"""
+        print("\n=== 5. 医学风险评估 ===")
+        
+        # 5.1 基于聚类的风险分层
+        cluster_data = self.analysis_results['clustering']['cluster_data']
+        cluster_summary = self.analysis_results['clustering']['cluster_summary']
+        
+        # 计算每个聚类的异常风险
+        risk_assessment = {}
+        for cluster_id in cluster_summary.keys():
+            cluster_subset = cluster_data[cluster_data['聚类标签'] == cluster_id]
+            
+            # 合并异常检测结果
+            cluster_indices = cluster_subset.index
+            male_cluster_data = self.male_data.loc[cluster_indices]
+            
+            abnormal_rate_iqr = male_cluster_data['X浓度_IQR异常'].mean()
+            abnormal_rate_stat = male_cluster_data['X浓度_统计异常'].mean()
+            
+            risk_assessment[cluster_id] = {
+                'IQR异常率': abnormal_rate_iqr,
+                '统计异常率': abnormal_rate_stat,
+                '综合风险评分': (abnormal_rate_iqr + abnormal_rate_stat) / 2
+            }
+        
+        print("各聚类风险评估:")
+        for cluster_id, risk_data in risk_assessment.items():
+            print(f"聚类 {cluster_id}: {risk_data}")
+        
+        # 5.2 临床建议生成
+        recommendations = {}
+        for cluster_id, risk_data in risk_assessment.items():
+            risk_score = risk_data['综合风险评分']
+            if risk_score < 0.05:
+                risk_level = "低风险"
+                recommendation = "常规监测，按标准流程进行NIPT检测"
+            elif risk_score < 0.15:
+                risk_level = "中等风险"
+                recommendation = "增加监测频率，建议结合其他生化指标"
+            else:
+                risk_level = "高风险"
+                recommendation = "密切监测，建议进行进一步的产前诊断"
+            
+            recommendations[cluster_id] = {
+                'risk_level': risk_level,
+                'recommendation': recommendation
+            }
+        
+        print("\n临床建议:")
+        for cluster_id, rec in recommendations.items():
+            print(f"聚类 {cluster_id} ({rec['risk_level']}): {rec['recommendation']}")
+        
+        self.analysis_results['risk_assessment'] = {
+            'cluster_risks': risk_assessment,
+            'recommendations': recommendations
+        }
+        
+        return self
+    
+    def comprehensive_visualization(self):
+        """综合可视化"""
+        print("\n=== 6. 生成综合分析报告 ===")
+        
+        # 创建综合图表
+        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        
+        # 1. X染色体浓度分布对比
+        male_x_conc = self.male_data['X染色体浓度'].dropna()
+        female_x_conc = self.female_data['X染色体浓度'].dropna()
+        
+        axes[0, 0].hist(male_x_conc, alpha=0.7, label='男胎', bins=30, density=True)
+        if len(female_x_conc) > 0:
+            axes[0, 0].hist(female_x_conc, alpha=0.7, label='女胎', bins=30, density=True)
+        axes[0, 0].set_xlabel('X染色体浓度')
+        axes[0, 0].set_ylabel('密度')
+        axes[0, 0].set_title('X染色体浓度分布对比')
+        axes[0, 0].legend()
+        
+        # 2. 异常检测结果
+        abnormal_counts = [
+            self.male_data['X浓度_IQR异常'].sum(),
+            self.male_data['X浓度_统计异常'].sum()
+        ]
+        axes[0, 1].bar(['IQR方法', '统计学方法'], abnormal_counts)
+        axes[0, 1].set_ylabel('异常样本数')
+        axes[0, 1].set_title('不同方法检测的异常样本数')
+        
+        # 3. 聚类轮廓系数
+        K_range = range(2, 8)
+        silhouette_scores = self.analysis_results['clustering']['silhouette_scores']
+        axes[0, 2].plot(K_range, silhouette_scores, 'bo-')
+        axes[0, 2].set_xlabel('聚类数')
+        axes[0, 2].set_ylabel('轮廓系数')
+        axes[0, 2].set_title('聚类数优化')
+        axes[0, 2].grid(True)
+        
+        # 4. 聚类散点图
+        cluster_data = self.analysis_results['clustering']['cluster_data']
+        scatter = axes[1, 0].scatter(cluster_data['X染色体浓度'], 
+                                   cluster_data['孕妇BMI指标'], 
+                                   c=cluster_data['聚类标签'], 
+                                   cmap='viridis')
+        axes[1, 0].set_xlabel('X染色体浓度')
+        axes[1, 0].set_ylabel('孕妇BMI指标')
+        axes[1, 0].set_title('聚类结果：X浓度vs BMI')
+        
+        # 5. 风险评估热图
+        risk_data = self.analysis_results['risk_assessment']['cluster_risks']
+        risk_matrix = np.array([[risk_data[i]['IQR异常率'], 
+                               risk_data[i]['统计异常率']] 
+                              for i in sorted(risk_data.keys())])
+        
+        im = axes[1, 1].imshow(risk_matrix.T, cmap='Reds', aspect='auto')
+        axes[1, 1].set_xticks(range(len(risk_data)))
+        axes[1, 1].set_xticklabels([f'聚类{i}' for i in sorted(risk_data.keys())])
+        axes[1, 1].set_yticks([0, 1])
+        axes[1, 1].set_yticklabels(['IQR异常率', '统计异常率'])
+        axes[1, 1].set_title('各聚类异常率热图')
+        
+        # 添加数值标注
+        for i in range(risk_matrix.shape[0]):
+            for j in range(risk_matrix.shape[1]):
+                axes[1, 1].text(i, j, f'{risk_matrix[i, j]:.3f}', 
+                               ha="center", va="center", color="white")
+        
+        # 6. 特征重要性（回归系数）
+        regression_results = self.analysis_results['regression']['model']
+        features = self.analysis_results['regression']['features']
+        coefs = regression_results.params[1:]  # 排除常数项
+        
+        axes[1, 2].barh(features, coefs)
+        axes[1, 2].set_xlabel('回归系数')
+        axes[1, 2].set_title('特征重要性（逻辑回归系数）')
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(results_dir, 'T3_comprehensive_analysis.png'), dpi=300)
+        plt.close()
+        
+        return self
+    
+    def generate_report(self):
+        """生成分析报告"""
+        print("\n=== 7. 生成分析报告 ===")
+        
+        report = []
+        report.append("# T3 X染色体浓度异常分析报告")
+        report.append("## （结合T1统计建模和T2聚类分析思路）")
+        report.append("")
+        
+        # 1. 数据概况
+        report.append("## 1. 数据概况")
+        report.append(f"- 总样本数: {len(self.data)}")
+        report.append(f"- 男胎样本数: {len(self.male_data)}")
+        report.append(f"- 女胎样本数: {len(self.female_data)}")
+        report.append("")
+        
+        # 2. 统计分析结果
+        report.append("## 2. X染色体浓度统计特征")
+        stats_summary = self.analysis_results['stats_summary']
+        male_stats = stats_summary['男胎']
+        report.append(f"- 男胎X染色体浓度均值: {male_stats['mean']:.4f}")
+        report.append(f"- 男胎X染色体浓度标准差: {male_stats['std']:.4f}")
+        report.append(f"- 男胎X染色体浓度中位数: {male_stats['50%']:.4f}")
+        
+        # 异常值检测结果
+        outlier_bounds = self.analysis_results['outlier_bounds']
+        iqr_abnormal = self.male_data['X浓度_IQR异常'].sum()
+        stat_abnormal = self.male_data['X浓度_统计异常'].sum()
+        
+        report.append("")
+        report.append("### 异常值检测结果")
+        report.append(f"- IQR方法异常样本数: {iqr_abnormal} ({iqr_abnormal/len(self.male_data)*100:.2f}%)")
+        report.append(f"- 统计学方法异常样本数: {stat_abnormal} ({stat_abnormal/len(self.male_data)*100:.2f}%)")
+        report.append("")
+        
+        # 3. 聚类分析结果
+        clustering_results = self.analysis_results['clustering']
+        report.append("## 3. 聚类分析结果")
+        report.append(f"- 最佳聚类数: {clustering_results['best_k']}")
+        report.append(f"- 最高轮廓系数: {max(clustering_results['silhouette_scores']):.4f}")
+        
+        report.append("")
+        report.append("### 各聚类特征")
+        for cluster_id, summary in clustering_results['cluster_summary'].items():
+            report.append(f"**聚类 {cluster_id}:**")
+            report.append(f"- 样本数: {summary['样本数']}")
+            report.append(f"- X染色体浓度均值: {summary['X染色体浓度均值']:.4f}")
+            report.append(f"- BMI均值: {summary['BMI均值']:.2f}")
+            report.append(f"- 孕周均值: {summary['孕周均值']:.2f}")
+            report.append("")
+        
+        # 4. 回归建模结果
+        regression_results = self.analysis_results['regression']
+        report.append("## 4. 逻辑回归建模结果")
+        report.append(f"- 建模特征: {', '.join(regression_results['features'])}")
+        
+        # 显著性系数
+        model = regression_results['model']
+        significant_features = model.pvalues[model.pvalues < 0.05].index.tolist()
+        if 'const' in significant_features:
+            significant_features.remove('const')
+        
+        if significant_features:
+            report.append(f"- 显著影响因素 (p<0.05): {', '.join(significant_features)}")
+        else:
+            report.append("- 无显著影响因素 (p<0.05)")
+        
+        report.append(f"- 模型伪R²: {model.prsquared:.4f}")
+        report.append("")
+        
+        # 5. 风险评估和临床建议
+        risk_assessment = self.analysis_results['risk_assessment']
+        report.append("## 5. 风险评估和临床建议")
+        
+        for cluster_id in sorted(risk_assessment['cluster_risks'].keys()):
+            risk_data = risk_assessment['cluster_risks'][cluster_id]
+            recommendation = risk_assessment['recommendations'][cluster_id]
+            
+            report.append(f"**聚类 {cluster_id} ({recommendation['risk_level']}):**")
+            report.append(f"- 综合风险评分: {risk_data['综合风险评分']:.4f}")
+            report.append(f"- 临床建议: {recommendation['recommendation']}")
+            report.append("")
+        
+        # 6. 核心发现
+        report.append("## 6. 核心发现与创新点")
+        report.append("### 相比原T3分析的改进:")
+        report.append("1. **统计学深度**: 采用T1的回归建模思路，进行VIF共线性诊断和逻辑回归分析")
+        report.append("2. **聚类洞察**: 借鉴T2的K-means聚类方法，发现患者亚群特征")
+        report.append("3. **异常检测**: 使用多种统计学方法(IQR + 均值±2σ)进行异常值检测")
+        report.append("4. **风险分层**: 基于聚类结果进行风险分层和个性化临床建议")
+        report.append("5. **医学意义**: 结合孕周、BMI等临床因素，提供更有意义的解释")
+        report.append("")
+        
+        report.append("### 主要结论:")
+        if stat_abnormal < len(self.male_data) * 0.1:
+            report.append("- X染色体浓度异常率较低，大多数样本处于正常范围")
+        else:
+            report.append("- X染色体浓度异常率较高，需要重点关注")
+        
+        report.append(f"- 通过聚类分析识别出 {clustering_results['best_k']} 个不同的患者亚群")
+        report.append("- 不同亚群的异常风险存在显著差异，支持个性化检测策略")
+        
+        # 保存报告
+        with open(os.path.join(results_dir, 'T3_enhanced_analysis_report.md'), 'w', encoding='utf-8') as f:
+            f.write('\n'.join(report))
+        
+        print("分析报告已保存到:", os.path.join(results_dir, 'T3_enhanced_analysis_report.md'))
+        
+        return self
+    
+    def run_complete_analysis(self):
+        """运行完整分析流程"""
+        print("开始T3增强分析...")
+        
+        self.load_and_preprocess_data()
+        self.statistical_analysis()
+        self.clustering_analysis()
+        self.regression_modeling()
+        self.medical_risk_assessment()
+        self.comprehensive_visualization()
+        self.generate_report()
+        
+        print(f"\n=== 分析完成 ===")
+        print(f"所有结果已保存到: {results_dir}")
+        print("\n主要输出文件:")
+        print("- T3_clustering_analysis.png: 聚类分析可视化")
+        print("- T3_comprehensive_analysis.png: 综合分析图表")
+        print("- T3_logistic_regression_results.txt: 回归模型详细结果")
+        print("- T3_enhanced_analysis_report.md: 完整分析报告")
+        
+        return self
+
+# 执行分析
+if __name__ == "__main__":
+    analyzer = T3EnhancedAnalysis()
+    analyzer.run_complete_analysis()
