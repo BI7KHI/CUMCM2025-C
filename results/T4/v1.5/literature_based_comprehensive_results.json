@@ -1,0 +1,177 @@
+{
+  "version": "v1.5",
+  "literature_basis": {
+    "primary_references": [
+      "Wei_Zhifang_2025_FF_threshold_analysis",
+      "Xue_Ying_2017_quantitative_relationships",
+      "Canick_2013_Y_chromosome_specificity",
+      "Wang_2013_gestational_effects",
+      "Kinnings_2015_BMI_plateau",
+      "Livergood_2017_obesity_effects",
+      "Haghiac_2013_adipocyte_mechanisms"
+    ],
+    "key_findings": [
+      "FF<4%为NIPT检测失败阈值",
+      "BMI≥35kg/m²需21周后检测",
+      "Y染色体浓度是女胎判定金标准",
+      "GC含量变异是重要异常指标",
+      "孕周与BMI存在补偿性交互作用"
+    ]
+  },
+  "female_detection": {
+    "method": "literature_based_multi_criteria",
+    "version": "v1.5",
+    "y_conc_threshold": 0.0,
+    "zy_threshold": -0.2704124755,
+    "decision_rule": "majority_vote_2_of_4",
+    "clustering_validation": {
+      "performed": true,
+      "cluster_means": [
+        0.07718697843807763,
+        NaN
+      ],
+      "female_cluster_id": 1
+    },
+    "total_samples": 1687,
+    "female_samples": 1643,
+    "female_ratio": 0.973918197984588,
+    "criteria_used": [
+      "Y浓度≤P30(0.0000)",
+      "ZY≤P25(-0.270)",
+      "估计FF≤0.12",
+      "BMI-GA风险评估"
+    ],
+    "literature_basis": [
+      "Canick_2013_Y_chromosome_specificity",
+      "Wang_2013_gestational_age_effects",
+      "Kinnings_2015_BMI_plateau_effect",
+      "Livergood_2017_BMI_35_cutoff",
+      "Wei_2025_FF_failure_threshold",
+      "Xue_2017_quantitative_relationship"
+    ]
+  },
+  "feature_selection": {
+    "total_features_engineered": 50,
+    "final_selected_features": 27,
+    "selected_features": [
+      "Z13",
+      "Z18",
+      "Z21",
+      "Z13_abs",
+      "Z18_abs",
+      "ZX_abs",
+      "Z13_abnormal",
+      "Z18_abnormal",
+      "total_z_abnormal",
+      "trisomy_risk_score",
+      "Z13_Z18_interaction",
+      "Z13_Z21_interaction",
+      "GC_variance",
+      "GC_range",
+      "GC_coefficient_variation",
+      "BMI_high_risk",
+      "BMI_squared",
+      "孕周_float",
+      "GA_early_phase",
+      "GA_late_phase",
+      "GA_squared",
+      "比对比例",
+      "过滤比例",
+      "estimated_ff",
+      "FF_log",
+      "Z21_abs",
+      "BMI_GA_interaction"
+    ],
+    "literature_priority_features": [
+      "Z13_abs",
+      "Z18_abs",
+      "Z21_abs",
+      "trisomy_risk_score",
+      "GC_variance",
+      "BMI_GA_interaction",
+      "total_z_abnormal"
+    ]
+  },
+  "model_performance": {
+    "f1_optimal": {
+      "threshold": 0.6443476284400408,
+      "precision": 0.37777777777777777,
+      "recall": 0.38636363636363635,
+      "f1": 0.38202247191011235,
+      "confusion_matrix": [
+        [
+          272,
+          28
+        ],
+        [
+          27,
+          17
+        ]
+      ],
+      "roc_auc": 0.7222727272727273
+    },
+    "recall_optimal": {
+      "threshold": 0.31952592687016296,
+      "precision": 0.15648854961832062,
+      "recall": 0.9318181818181818,
+      "f1": 0.2679738562091503,
+      "confusion_matrix": [
+        [
+          79,
+          221
+        ],
+        [
+          3,
+          41
+        ]
+      ],
+      "roc_auc": 0.7222727272727273
+    },
+    "conservative": {
+      "threshold": 0.3,
+      "precision": 0.1510791366906475,
+      "recall": 0.9545454545454546,
+      "f1": 0.2608695652173913,
+      "confusion_matrix": [
+        [
+          64,
+          236
+        ],
+        [
+          2,
+          42
+        ]
+      ],
+      "roc_auc": 0.7222727272727273
+    }
+  },
+  "threshold_strategies": {
+    "f1_optimal": {
+      "threshold": 0.6443476284400408,
+      "metrics": {
+        "precision": 0.3668639053254438,
+        "recall": 0.4492753623188406,
+        "f1": 0.4039087947877787
+      }
+    },
+    "recall_optimal": {
+      "threshold": 0.31952592687016296,
+      "metrics": {
+        "precision": 0.1417233560090703,
+        "recall": 0.9057971014492754,
+        "f1": 0.2450980392154523
+      }
+    },
+    "conservative_clinical": {
+      "threshold": 0.3,
+      "description": "基于文献的保守临床阈值"
+    }
+  },
+  "clinical_recommendations": {
+    "screening_strategy": "召回优先阈值用于初步筛查",
+    "diagnostic_strategy": "F1优化阈值用于确诊检测",
+    "high_risk_strategy": "保守阈值用于高风险人群",
+    "bmi_adjustment": "BMI≥35kg/m²的孕妇建议21周后检测",
+    "ff_threshold": "FF<4%时建议重采血或延迟检测"
+  }
+}

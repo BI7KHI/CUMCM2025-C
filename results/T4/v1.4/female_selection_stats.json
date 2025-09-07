@@ -1,0 +1,18 @@
+{
+  "method": "improved_multi_criteria",
+  "y_conc_threshold": 0.0552132625,
+  "zy_threshold": -0.66697797075,
+  "zx_range": [
+    -2.214126571878456,
+    2.973536704057472
+  ],
+  "clustering_validation": true,
+  "total_samples": 1687,
+  "female_samples": 1067,
+  "female_ratio": 0.6324836988737403,
+  "criteria_used": [
+    "Y浓度≤0.0552",
+    "ZY≤-0.667",
+    "ZX正常范围"
+  ]
+}

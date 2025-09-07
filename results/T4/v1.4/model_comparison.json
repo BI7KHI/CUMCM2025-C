@@ -1,0 +1,31 @@
+{
+  "version": "v1.4",
+  "model_results": {
+    "LogisticRegression": {
+      "best_score": 0.33453998410555563,
+      "best_params": {
+        "clf__C": 100.0,
+        "clf__penalty": "l1",
+        "clf__solver": "liblinear"
+      }
+    },
+    "RandomForest": {
+      "best_score": 0.33088376482485876,
+      "best_params": {
+        "clf__max_depth": 3,
+        "clf__min_samples_leaf": 2,
+        "clf__min_samples_split": 10,
+        "clf__n_estimators": 300
+      }
+    },
+    "GradientBoosting": {
+      "best_score": 0.2539254126488169,
+      "best_params": {
+        "clf__learning_rate": 0.2,
+        "clf__max_depth": 3,
+        "clf__n_estimators": 200,
+        "clf__subsample": 1.0
+      }
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "version": "v1.5",
+  "feature_importance": {
+    "model_based": {
+      "Z13": 0.27575183141171244,
+      "Z18": 0.01910271831964254,
+      "Z21": 0.24112488210643943,
+      "Z13_abs": 0.04390047884460204,
+      "Z18_abs": 0.03421330455449624,
+      "ZX_abs": 0.04075816874571289,
+      "Z13_abnormal": 0.11187604692840435,
+      "Z18_abnormal": 0.26957854776135437,
+      "total_z_abnormal": 0.4140904470363035,
+      "trisomy_risk_score": 0.009330283164978454,
+      "Z13_Z18_interaction": 0.009151274901278114,
+      "Z13_Z21_interaction": 0.12631681840615464,
+      "GC_variance": 1.8226459664269927,
+      "GC_range": 1.5620966052312568,
+      "GC_coefficient_variation": 0.44734018833437406,
+      "BMI_high_risk": 0.0921475874354939,
+      "BMI_squared": 0.09004708574920074,
+      "孕周_float": 1.9258467513422004,
+      "GA_early_phase": 1.7611969096784317,
+      "GA_late_phase": 2.0771179509532756,
+      "GA_squared": 4.060499349137188,
+      "比对比例": 0.0831235251542384,
+      "过滤比例": 0.018413276217343257,
+      "estimated_ff": 0.6895316258966823,
+      "FF_log": 2.2435317264060015,
+      "Z21_abs": 0.018654481583888674,
+      "BMI_GA_interaction": 3.76501173147977
+    },
+    "permutation": {
+      "Z13": -0.028327539041824733,
+      "Z18": 0.015436050647318279,
+      "Z21": 0.022829871467404672,
+      "Z13_abs": 0.003693500425179674,
+      "Z18_abs": 0.01687283225651366,
+      "ZX_abs": 0.011336712938035587,
+      "Z13_abnormal": 0.058763384462117485,
+      "Z18_abnormal": 0.04119110237966983,
+      "total_z_abnormal": 0.10817730656440334,
+      "trisomy_risk_score": 0.012016152861223317,
+      "Z13_Z18_interaction": -0.0005121638924455829,
+      "Z13_Z21_interaction": -0.007318926524646929,
+      "GC_variance": 0.047652440798434934,
+      "GC_range": 0.10324461503408873,
+      "GC_coefficient_variation": 0.023618388499988208,
+      "BMI_high_risk": -2.6053747679377625e-05,
+      "BMI_squared": 0.005080448802354731,
+      "孕周_float": 0.12636619589560769,
+      "GA_early_phase": 0.07818461841268617,
+      "GA_late_phase": 0.06084888752095228,
+      "GA_squared": 0.14765243922226406,
+      "比对比例": 0.015106551106551114,
+      "过滤比例": 0.0005050505050505083,
+      "estimated_ff": 0.08227532717076809,
+      "FF_log": 0.126661730731475,
+      "Z21_abs": 0.0035851472471190916,
+      "BMI_GA_interaction": 0.14649364334626042
+    }
+  },
+  "literature_interpretation": {
+    "top_gc_features": [
+      "GC_variance",
+      "GC_range",
+      "GC_coefficient_variation"
+    ],
+    "top_z_features": [
+      "Z13",
+      "Z18",
+      "Z21",
+      "Z13_abs",
+      "Z18_abs",
+      "Z13_abnormal",
+      "Z18_abnormal",
+      "Z13_Z18_interaction",
+      "Z13_Z21_interaction",
+      "Z21_abs"
+    ],
+    "top_clinical_features": [
+      "BMI_high_risk",
+      "BMI_squared",
+      "孕周_float",
+      "GA_early_phase",
+      "GA_late_phase",
+      "GA_squared",
+      "BMI_GA_interaction"
+    ]
+  }
+}

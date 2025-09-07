@@ -1,0 +1,46 @@
+{
+  "version": "v1.3_optimized",
+  "f1_optimized": {
+    "threshold": 0.5971167109572917,
+    "precision": 0.4411764705882353,
+    "recall": 0.5172413793103449,
+    "f1": 0.47619047619047616,
+    "roc_auc": 0.7824630541871922
+  },
+  "recall_optimized": {
+    "threshold": 0.32879325171625307,
+    "precision": 0.19230769230769232,
+    "recall": 0.8620689655172413,
+    "f1": 0.31446540880503143,
+    "roc_auc": 0.7824630541871922
+  },
+  "feature_count": 26,
+  "selected_features": [
+    "孕周_float",
+    "GC_range",
+    "total_anomalies",
+    "Z13",
+    "过滤比例",
+    "Z_max_critical",
+    "anomaly_13",
+    "唯一比对率",
+    "Z18_Z21_product",
+    "GC13",
+    "Z18",
+    "Z13_Z18_product",
+    "Z18_abs",
+    "BMI_category",
+    "GC21",
+    "孕周_squared",
+    "GC_total",
+    "risk_score",
+    "Z13_Z21_product",
+    "Z13_abs",
+    "Z_norm_critical",
+    "GC18",
+    "BMI",
+    "anomaly_18",
+    "GC_variance",
+    "Z21"
+  ]
+}
