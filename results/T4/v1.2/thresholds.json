@@ -1,0 +1,6 @@
+{
+  "version": "v1.2",
+  "best_threshold_f1": 0.6869799838217802,
+  "recall_priority_threshold": 0.28864512713474477,
+  "target_recall": 0.9
+}

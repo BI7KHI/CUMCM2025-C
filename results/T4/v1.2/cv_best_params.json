@@ -1,0 +1,8 @@
+{
+  "version": "v1.2",
+  "best_params": {
+    "clf__C": 0.1,
+    "clf__penalty": "l1"
+  },
+  "best_score": 0.42218286311389763
+}
