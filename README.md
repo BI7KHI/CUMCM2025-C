@@ -34,8 +34,8 @@ M2 Grok-4
 
 * [X] T1	>>CUMCM2025-C\scripts_v1.3_t1	||	CUMCM2025-C\results_v1.3
 * [X] T2	>>CUMCM2025-C\scripts_T2_v1.1	>>	CUMCM2025-C\t2_scripts_v2.2\t2_enhanced_final.py	||	CUMCM2025-C\results_v2.2
-* [ ] T3
-* [ ] T4
+* [X] T3
+* [X] T4
 
 # Contributor
 
