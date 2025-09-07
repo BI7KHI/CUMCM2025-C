@@ -42,13 +42,3 @@ M4 GPT-5 `<br>`
 M6 Gemini-2.5-Pro `<br>`
 
 AI太好用了你知道吧
-
-# @Chat 使用的生成式模型
-
-M1 Doubao-T1 `<br> `
-
-M2 Grok-4 `<br>`
-
-M4 GPT-5 `<br>`
-
-M6 Gemini-2.5-Pro `<br>`
