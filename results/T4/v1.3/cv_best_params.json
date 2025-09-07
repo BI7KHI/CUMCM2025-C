@@ -1,0 +1,9 @@
+{
+  "version": "v1.3",
+  "best_params": {
+    "clf__C": 0.05,
+    "clf__penalty": "l1",
+    "clf__solver": "saga"
+  },
+  "best_score": 0.4556709956709957
+}
